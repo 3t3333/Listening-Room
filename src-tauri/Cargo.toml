@@ -1,0 +1,25 @@
+[package]
+name = "listening-room"
+version = "0.1.0"
+description = "A spatial Spotify listening room"
+edition = "2024"
+
+[lib]
+name = "listening_room_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+dotenvy = "0.15.7"
+futures = "0.3.31"
+rspotify = { version = "0.16.1", features = ["cli"] }
+rustfft = "6.4.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tokio = { version = "1", features = ["sync"] }
+
+[target.'cfg(windows)'.dependencies]
+wasapi = "0.24.0"

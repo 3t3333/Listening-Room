@@ -1,0 +1,34 @@
+# Dependencies and build output
+/node_modules/
+/dist/
+/target/
+/src-tauri/target/
+/src-tauri/gen/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tmp
+*.temp
+
+# Local design references and downloaded font archives
+/Inter/
+/Inter.zip
+/Screenshot *.png
+/background.png
