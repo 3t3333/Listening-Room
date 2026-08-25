@@ -5,7 +5,6 @@ import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
 import { VinylRecord } from "../components/VinylRecord";
-import { useAudioSpectrum } from "../hooks/useAudioSpectrum";
 import { useArtworkPalette } from "../hooks/useArtworkColor";
 import type { ThemeProps } from "./types";
 
@@ -14,7 +13,6 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
   const artworkPalette = useArtworkPalette(track?.imageUrl);
   const palette = background.adaptColors && background.imageUrl ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
-  const spectrum = useAudioSpectrum();
   const style = {
     "--ambient-rgb": `${red}, ${green}, ${blue}`,
     "--visualizer-rgb": `${accentRed}, ${accentGreen}, ${accentBlue}`,
@@ -24,14 +22,15 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
     <section className="theme-scene midnight-theme" style={style}>
       <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
       <div className="midnight-ambient" />
-      <AudioVisualizer spectrum={spectrum} />
+      <AudioVisualizer />
 
       <div className="midnight-stack">
         <TrackDetailsDialog track={track}>
           <div className="midnight-sleeve">
             <span className="midnight-sleeve-edge" />
             {track?.imageUrl ? <img src={track.imageUrl} alt={`${track.name} cover`} /> : <Disc3 />}
-            <i />
+            <span className="midnight-sleeve-plastic" />
+            <span className="midnight-sleeve-shine" />
           </div>
         </TrackDetailsDialog>
         <VinylRecord track={track} isPlaying={playback.isPlaying} />

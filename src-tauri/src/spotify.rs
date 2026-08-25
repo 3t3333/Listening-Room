@@ -1,23 +1,27 @@
 use std::{
+    path::PathBuf,
     sync::Arc,
+    sync::atomic::{AtomicBool, Ordering},
     time::{Duration, Instant},
 };
 
 use futures::StreamExt;
 use rspotify::{
-    AuthCodeSpotify, ClientError, ClientResult, Credentials, OAuth,
-    model::{DisallowKey, EpisodeId, PlayableId, PlayableItem, PlaylistId, TrackId},
+    AuthCodeSpotify, ClientError, ClientResult, Config, Credentials, OAuth,
+    model::{DisallowKey, EpisodeId, PlayableId, PlayableItem, PlaylistId, RepeatState, TrackId},
     prelude::*,
     scopes,
 };
 use serde_json::Value;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::models::{PlaybackState, Playlist, Track};
 
-#[derive(Default)]
 pub struct SpotifyService {
     client: RwLock<Option<Arc<AuthCodeSpotify>>>,
+    cache_path: PathBuf,
+    auth_lock: Mutex<()>,
+    restore_attempted: AtomicBool,
     queue_cache: RwLock<QueueCache>,
     playback_cache: RwLock<Option<PlaybackState>>,
 }
@@ -29,7 +33,33 @@ struct QueueCache {
 }
 
 impl SpotifyService {
+    pub fn new(cache_path: PathBuf) -> Self {
+        Self {
+            client: RwLock::new(None),
+            cache_path,
+            auth_lock: Mutex::new(()),
+            restore_attempted: AtomicBool::new(false),
+            queue_cache: RwLock::new(QueueCache::default()),
+            playback_cache: RwLock::new(None),
+        }
+    }
+
     pub async fn connect(&self) -> Result<(), String> {
+        let _auth_guard = self.auth_lock.lock().await;
+        let spotify = self.spotify_client()?;
+        let url = spotify
+            .get_authorize_url(false)
+            .map_err(|error| error.to_string())?;
+        spotify
+            .prompt_for_token(&url)
+            .await
+            .map_err(|error| error.to_string())?;
+        *self.client.write().await = Some(Arc::new(spotify));
+        self.restore_attempted.store(true, Ordering::Release);
+        Ok(())
+    }
+
+    fn spotify_client(&self) -> Result<AuthCodeSpotify, String> {
         dotenvy::dotenv().ok();
         let credentials = Credentials::from_env()
             .ok_or_else(|| "Spotify credentials are missing from .env".to_owned())?;
@@ -41,17 +71,32 @@ impl SpotifyService {
             "playlist-read-collaborative"
         ))
         .ok_or_else(|| "RSPOTIFY_REDIRECT_URI is missing from .env".to_owned())?;
+        let config = Config {
+            cache_path: self.cache_path.clone(),
+            token_cached: true,
+            token_refreshing: true,
+            ..Config::default()
+        };
+        Ok(AuthCodeSpotify::with_config(credentials, oauth, config))
+    }
 
-        let spotify = AuthCodeSpotify::new(credentials, oauth);
-        let url = spotify
-            .get_authorize_url(false)
-            .map_err(|error| error.to_string())?;
-        spotify
-            .prompt_for_token(&url)
-            .await
-            .map_err(|error| error.to_string())?;
+    async fn restore_cached_client(&self) {
+        if self.restore_attempted.load(Ordering::Acquire) {
+            return;
+        }
+        let _auth_guard = self.auth_lock.lock().await;
+        if self.restore_attempted.swap(true, Ordering::AcqRel) || self.client.read().await.is_some()
+        {
+            return;
+        }
+        let Ok(spotify) = self.spotify_client() else {
+            return;
+        };
+        let Ok(Some(token)) = spotify.read_token_cache(true).await else {
+            return;
+        };
+        *spotify.token.lock().await.unwrap() = Some(token);
         *self.client.write().await = Some(Arc::new(spotify));
-        Ok(())
     }
 
     async fn client(&self) -> Result<Arc<AuthCodeSpotify>, String> {
@@ -63,6 +108,7 @@ impl SpotifyService {
     }
 
     pub async fn playback(&self) -> Result<PlaybackState, String> {
+        self.restore_cached_client().await;
         let Ok(spotify) = self.client().await else {
             return Ok(PlaybackState::default());
         };
@@ -124,6 +170,15 @@ impl SpotifyService {
         cache.fetched_at = Some(Instant::now());
         cache.next.clone_from(&next);
         next
+    }
+
+    pub async fn queue(&self) -> Result<Vec<Track>, String> {
+        let queue = spotify_result(
+            self.client().await?.current_user_queue().await,
+            "Load playback queue",
+        )
+        .await?;
+        Ok(queue.queue.iter().filter_map(track_from_item).collect())
     }
 
     pub async fn playlists(&self) -> Result<Vec<Playlist>, String> {
@@ -195,25 +250,66 @@ impl SpotifyService {
     }
 
     pub async fn play_uri(&self, uri: &str) -> Result<(), String> {
-        let playable = if uri.starts_with("spotify:track:") {
-            TrackId::from_uri(uri)
-                .map(PlayableId::Track)
-                .map_err(|error| error.to_string())?
-        } else if uri.starts_with("spotify:episode:") {
-            EpisodeId::from_uri(uri)
-                .map(PlayableId::Episode)
-                .map_err(|error| error.to_string())?
-        } else {
-            return Err("Unsupported Spotify URI".to_owned());
-        };
+        self.play_collection(&[uri.to_owned()], uri).await
+    }
+
+    pub async fn play_collection(&self, uris: &[String], start_uri: &str) -> Result<(), String> {
+        let ordered = collection_playback_order(uris, start_uri)?;
+        let playable = ordered
+            .iter()
+            .map(|uri| playable_from_uri(uri))
+            .collect::<Result<Vec<_>, _>>()?;
+        let spotify = self.client().await?;
         spotify_result(
-            self.client()
-                .await?
-                .start_uris_playback([playable], None, None, None)
+            spotify
+                .start_uris_playback(playable, None, None, None)
                 .await,
-            "Play selected track",
+            "Play selected collection",
+        )
+        .await?;
+        spotify_result(
+            spotify.repeat(RepeatState::Context, None).await,
+            "Loop collection",
         )
         .await
+    }
+
+    pub async fn queue_uri(&self, uri: &str) -> Result<(), String> {
+        let playable = playable_from_uri(uri)?;
+        spotify_result(
+            self.client().await?.add_item_to_queue(playable, None).await,
+            "Add track to queue",
+        )
+        .await?;
+        self.queue_cache.write().await.fetched_at = None;
+        Ok(())
+    }
+}
+
+fn collection_playback_order(uris: &[String], start_uri: &str) -> Result<Vec<String>, String> {
+    let start = uris
+        .iter()
+        .position(|uri| uri == start_uri)
+        .ok_or_else(|| "The selected track is not in this collection".to_owned())?;
+    Ok(uris[start..]
+        .iter()
+        .chain(&uris[..start])
+        .take(100)
+        .cloned()
+        .collect())
+}
+
+fn playable_from_uri(uri: &str) -> Result<PlayableId<'_>, String> {
+    if uri.starts_with("spotify:track:") {
+        TrackId::from_uri(uri)
+            .map(PlayableId::Track)
+            .map_err(|error| error.to_string())
+    } else if uri.starts_with("spotify:episode:") {
+        EpisodeId::from_uri(uri)
+            .map(PlayableId::Episode)
+            .map_err(|error| error.to_string())
+    } else {
+        Err("Unsupported Spotify URI".to_owned())
     }
 }
 
@@ -344,5 +440,23 @@ mod tests {
         assert_eq!(track.name, "Night Drive");
         assert_eq!(track.artist, "Room Service");
         assert_eq!(track.uri.as_deref(), Some("spotify:track:abc123"));
+    }
+
+    #[test]
+    fn playable_from_uri_should_reject_non_playable_contexts() {
+        assert_eq!(
+            playable_from_uri("spotify:playlist:abc").unwrap_err(),
+            "Unsupported Spotify URI"
+        );
+    }
+
+    #[test]
+    fn collection_playback_should_continue_after_selected_track_and_wrap() {
+        let uris = ["first", "second", "third"].map(str::to_owned);
+
+        assert_eq!(
+            collection_playback_order(&uris, "second").unwrap(),
+            ["second", "third", "first"]
+        );
     }
 }

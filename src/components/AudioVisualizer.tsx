@@ -1,13 +1,10 @@
 import type { CSSProperties } from "react";
-import type { AudioSpectrum } from "../hooks/useAudioSpectrum";
-
-interface Props {
-  spectrum: AudioSpectrum | null;
-}
+import { useAudioSpectrum } from "../hooks/useAudioSpectrum";
 
 const emptyBands = Array<number>(12).fill(0);
 
-export function AudioVisualizer({ spectrum }: Props) {
+export function AudioVisualizer() {
+  const spectrum = useAudioSpectrum();
   const bands = spectrum?.active && spectrum.bands.length === 12 ? spectrum.bands : emptyBands;
 
   return (

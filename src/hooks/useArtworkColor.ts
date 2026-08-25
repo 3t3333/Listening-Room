@@ -13,6 +13,7 @@ const fallback: ArtworkPalette = {
   accent: [232, 156, 94],
 };
 const cache = new Map<string, ArtworkPalette>();
+const cacheLimit = 120;
 const extractor = new FastAverageColor();
 
 export function useArtworkPalette(imageUrl: string | null | undefined) {
@@ -41,6 +42,7 @@ export function useArtworkPalette(imageUrl: string | null | undefined) {
         const accent = await extractAccent(imageUrl, primary).catch(() => complementary(primary));
         const next = { primary, accent };
         cache.set(imageUrl, next);
+        if (cache.size > cacheLimit) cache.delete(cache.keys().next().value!);
         if (!cancelled) setPalette(next);
       })
       .catch(() => {

@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Disc3, FolderPlus, Play, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, Disc3, FolderPlus, ListPlus, Play, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
 import { addTrackToCollection, getCollections, isTrackInCollection, recentCollectionId, removeTrackFromCollection, type Collection } from "../lib/collections";
 import type { Track } from "../lib/spotify";
@@ -23,7 +23,7 @@ interface ShufflingRecord {
   direction: 1 | -1;
 }
 
-export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track) => Promise<void> }) {
+export function CollectionsBrowser({ onPlayTrack, onQueueTrack }: { onPlayTrack: (track: Track, collection?: Track[]) => Promise<void>; onQueueTrack: (track: Track) => Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [browserView, setBrowserView] = useState<"menu" | "collection">("menu");
   const [collections, setCollections] = useState<Collection[]>(getCollections);
@@ -42,6 +42,8 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
   const focusCloseTimer = useRef(0);
   const focusTarget = useRef<HTMLDivElement>(null);
   const liftedSleeve = useRef<HTMLDivElement>(null);
+  const panBounds = useRef<DOMRect | null>(null);
+  const panFrame = useRef(0);
 
   const collection = collections.find((item) => item.id === collectionId) ?? collections[0];
   const tracks = collection?.tracks ?? [];
@@ -62,6 +64,7 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
     window.clearTimeout(wheelQuietTimer.current);
     window.clearTimeout(shuffleTimer.current);
     window.clearTimeout(focusCloseTimer.current);
+    window.cancelAnimationFrame(panFrame.current);
   }, []);
 
   useLayoutEffect(() => {
@@ -145,25 +148,34 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
   function panSleeve(event: PointerEvent<HTMLButtonElement>) {
     const sleeve = event.currentTarget;
     if (!sleeve.classList.contains("is-front")) return;
-    const bounds = sleeve.getBoundingClientRect();
+    const bounds = panBounds.current ?? sleeve.getBoundingClientRect();
+    panBounds.current = bounds;
     const horizontal = clamp((event.clientX - bounds.left) / bounds.width);
     const vertical = clamp((event.clientY - bounds.top) / bounds.height);
-    sleeve.style.setProperty("--tilt-x", `${(0.5 - vertical) * 28}deg`);
-    sleeve.style.setProperty("--tilt-y", `${(horizontal - 0.5) * 28}deg`);
-    sleeve.style.setProperty("--pan-x", `${(horizontal - 0.5) * 10}px`);
-    sleeve.style.setProperty("--pan-y", `${(vertical - 0.5) * 10}px`);
-    sleeve.style.setProperty("--shine-x", `${horizontal * 100}%`);
-    sleeve.style.setProperty("--shine-y", `${vertical * 100}%`);
+    window.cancelAnimationFrame(panFrame.current);
+    panFrame.current = window.requestAnimationFrame(() => {
+      sleeve.style.setProperty("--tilt-x", `${(0.5 - vertical) * 28}deg`);
+      sleeve.style.setProperty("--tilt-y", `${(horizontal - 0.5) * 28}deg`);
+      sleeve.style.setProperty("--pan-x", `${(horizontal - 0.5) * 10}px`);
+      sleeve.style.setProperty("--pan-y", `${(vertical - 0.5) * 10}px`);
+      sleeve.style.setProperty("--shine-x", `${horizontal * 100}%`);
+      sleeve.style.setProperty("--shine-y", `${vertical * 100}%`);
+    });
   }
 
   function resetSleevePan(event: PointerEvent<HTMLButtonElement>) {
     const sleeve = event.currentTarget;
+    window.cancelAnimationFrame(panFrame.current);
+    panBounds.current = null;
     setSleeveAtRest(sleeve);
     setHovered(null);
   }
 
   function inspectTrack(event: MouseEvent<HTMLButtonElement>, index: number, track: Track) {
-    const source = event.currentTarget.getBoundingClientRect();
+    const visual = event.currentTarget.classList.contains("is-front")
+      ? event.currentTarget
+      : event.currentTarget.querySelector<HTMLElement>(".crate-sleeve-pan") ?? event.currentTarget;
+    const source = visual.getBoundingClientRect();
     const content = event.currentTarget.closest(".collections-dialog")?.getBoundingClientRect();
     if (!content) return;
     window.clearTimeout(focusCloseTimer.current);
@@ -195,8 +207,20 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
     if (!focusedRecord?.track.uri) return;
     setError(null);
     try {
-      await onPlayTrack(focusedRecord.track);
+      await onPlayTrack(focusedRecord.track, tracks);
       setOpen(false);
+    } catch (reason) {
+      setError(String(reason));
+    }
+  }
+
+  async function queueTrack(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
+    if (!focusedRecord?.track.uri) return;
+    setError(null);
+    try {
+      await onQueueTrack(focusedRecord.track);
+      setNotice("Added to the Spotify queue");
     } catch (reason) {
       setError(String(reason));
     }
@@ -267,7 +291,7 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
             ))}
           </div>
         ) : tracks.length ? (
-          <div className="crate-room" onWheel={browseWithWheel}>
+          <div className="crate-room" onWheelCapture={browseWithWheel}>
             <div className={`record-crate ${shufflingRecord ? "is-shuffling" : ""}`}>
               <div className="crate-stack">
                 {stack.map(({ track, index }, slot) => {
@@ -278,11 +302,11 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
                       className={`crate-sleeve ${front ? "is-front" : ""} ${focusedRecord?.index === index ? "is-selected" : ""} ${shufflingRecord?.index === index ? "is-shuffle-source" : ""}`}
                       style={{ "--slot": slot, "--angle": `${angle}deg` } as CSSProperties}
                       key={track.uri ?? `${track.name}-${index}`}
-                      onPointerEnter={() => !front && setHovered(track)}
+                      onPointerEnter={() => setHovered(track)}
                       onPointerMove={panSleeve}
                       onPointerLeave={resetSleevePan}
                       onPointerCancel={resetSleevePan}
-                      onFocus={() => !front && setHovered(track)}
+                      onFocus={() => setHovered(track)}
                       onBlur={() => setHovered(null)}
                       onClick={(event) => inspectTrack(event, index, track)}
                       aria-label={`Inspect ${track.name}`}
@@ -328,6 +352,7 @@ export function CollectionsBrowser({ onPlayTrack }: { onPlayTrack: (track: Track
                 <p>{focusedRecord.track.artist}<span>{formatDuration(focusedRecord.track.durationMs)}</span></p>
                 <div className="collection-focus-actions">
                   <Button onClick={playTrack} disabled={!focusedRecord.track.uri}><Play size={16} fill="currentColor" />Play</Button>
+                  <Button variant="outline" onClick={queueTrack} disabled={!focusedRecord.track.uri}><ListPlus size={16} />Queue next</Button>
                   {destinations.map((destination) => {
                     const added = isTrackInCollection(focusedRecord.track, destination.id);
                     return (
@@ -376,7 +401,7 @@ function formatDuration(durationMs: number | null | undefined) {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function SleeveVisual({ track }: { track: Track }) {
+export function SleeveVisual({ track }: { track: Track }) {
   return (
     <span className="crate-sleeve-pan">
       <span className="crate-sleeve-back" />
@@ -385,7 +410,7 @@ function SleeveVisual({ track }: { track: Track }) {
       <span className="crate-sleeve-thickness crate-sleeve-thickness-right" />
       <span className="crate-sleeve-thickness crate-sleeve-thickness-bottom" />
       <span className="crate-sleeve-body">
-        {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <Disc3 />}
+        {track.imageUrl ? <img src={track.imageUrl} alt="" loading="lazy" decoding="async" /> : <Disc3 />}
         <span className="crate-sleeve-plastic" />
         <span className="crate-sleeve-film" />
       </span>
@@ -399,7 +424,7 @@ function CollectionPreview({ collection }: { collection: Collection }) {
     <span className="collection-preview" aria-hidden="true">
       {previews.length ? previews.map((track, index) => (
         <span className="collection-preview-sleeve" style={{ "--preview": index } as CSSProperties} key={track.uri ?? `${track.name}-${index}`}>
-          {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <Disc3 />}
+          {track.imageUrl ? <img src={track.imageUrl} alt="" loading="lazy" decoding="async" /> : <Disc3 />}
           <i />
         </span>
       )) : (

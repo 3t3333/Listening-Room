@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 
-export type ThemeId = "warm" | "midnight";
+export type ThemeId = "warm" | "midnight" | "archive";
 
 const storageKey = "listening-room-theme";
+const themes: ThemeId[] = ["warm", "midnight", "archive"];
 
 export function useTheme() {
   const [theme, setTheme] = useState<ThemeId>(() => {
     const saved = localStorage.getItem(storageKey);
-    return saved === "midnight" ? saved : "warm";
+    return themes.includes(saved as ThemeId) ? saved as ThemeId : "warm";
   });
 
   useEffect(() => {
@@ -18,7 +19,10 @@ export function useTheme() {
       if (acceptsText || document.querySelector('[role="dialog"]')) return;
 
       event.preventDefault();
-      setTheme(event.key === "ArrowLeft" ? "warm" : "midnight");
+      setTheme((current) => {
+        const offset = event.key === "ArrowLeft" ? -1 : 1;
+        return themes[(themes.indexOf(current) + offset + themes.length) % themes.length];
+      });
     }
 
     window.addEventListener("keydown", handleKeyDown);
