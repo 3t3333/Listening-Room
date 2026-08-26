@@ -1,5 +1,6 @@
-import { Pause, Play, SkipBack, SkipForward } from "lucide-react";
-import type { PlaybackState } from "../lib/spotify";
+import { Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
+import { useEffect, useState, type CSSProperties } from "react";
+import { type PlaybackState, spotify } from "../lib/spotify";
 import { Button } from "./ui/button";
 
 interface Props {
@@ -11,13 +12,57 @@ interface Props {
 }
 
 export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact }: Props) {
+  const initialVolume = playback.volumePercent ?? 65;
+  const [volume, setVolume] = useState(initialVolume);
+  const [submittedVolume, setSubmittedVolume] = useState(initialVolume);
+
+  useEffect(() => {
+    if (playback.volumePercent === null) return;
+    setVolume(playback.volumePercent);
+    setSubmittedVolume(playback.volumePercent);
+  }, [playback.volumePercent]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (submittedVolume !== volume) {
+        setSubmittedVolume(volume);
+        spotify.setVolume(volume).catch(console.error);
+      }
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [volume, submittedVolume]);
+
+  const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
+  const volumeStyle = { "--volume-fill": `${volume}%` } as CSSProperties;
+
   return (
-    <div className={`player-controls ${compact ? "is-compact" : ""}`}>
-      <Button aria-label="Previous track" variant="ghost" size="icon" disabled={!playback.canSkipPrevious} onClick={onPrevious}><SkipBack /></Button>
-      <Button className="primary-control" aria-label={playback.isPlaying ? "Pause" : "Play"} size="icon" disabled={playback.isPlaying ? !playback.canPause : !playback.canPlay} onClick={onToggle}>
-        {playback.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
-      </Button>
-      <Button aria-label="Next track" variant="ghost" size="icon" disabled={!playback.canSkipNext} onClick={onNext}><SkipForward /></Button>
+    <div className={`player-controls-container ${compact ? "is-compact" : ""}`}>
+      <div className={`player-controls ${compact ? "is-compact" : ""}`}>
+        <Button aria-label="Previous track" variant="ghost" size="icon" disabled={!playback.canSkipPrevious} onClick={onPrevious}><SkipBack /></Button>
+        <Button className="primary-control" aria-label={playback.isPlaying ? "Pause" : "Play"} size="icon" disabled={playback.isPlaying ? !playback.canPause : !playback.canPlay} onClick={onToggle}>
+          {playback.isPlaying ? <Pause fill="currentColor" /> : <Play fill="currentColor" />}
+        </Button>
+        <Button aria-label="Next track" variant="ghost" size="icon" disabled={!playback.canSkipNext} onClick={onNext}><SkipForward /></Button>
+      </div>
+
+      <div className="volume-control">
+        <button className="volume-trigger" type="button" aria-label={`Volume ${volume}%`} title={`Volume ${volume}%`}>
+          <VolumeIcon />
+        </button>
+        <div className="volume-panel" style={volumeStyle}>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={volume}
+            onChange={(event) => setVolume(Number(event.target.value))}
+            aria-label="Playback volume"
+            aria-valuetext={`${volume}%`}
+          />
+          <output aria-live="off">{volume}</output>
+        </div>
+      </div>
     </div>
   );
 }

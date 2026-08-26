@@ -17,6 +17,8 @@ use tokio::sync::{Mutex, RwLock};
 
 use crate::models::{PlaybackState, Playlist, Track};
 
+const LOCAL_DEVICE_ID: &str = "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d";
+
 pub struct SpotifyService {
     client: RwLock<Option<Arc<AuthCodeSpotify>>>,
     cache_path: PathBuf,
@@ -54,6 +56,12 @@ impl SpotifyService {
             .prompt_for_token(&url)
             .await
             .map_err(|error| error.to_string())?;
+
+        // Force our local device to be the active playback device if possible
+        let _ = spotify
+            .transfer_playback(LOCAL_DEVICE_ID, Some(false))
+            .await;
+
         *self.client.write().await = Some(Arc::new(spotify));
         self.restore_attempted.store(true, Ordering::Release);
         Ok(())
@@ -68,7 +76,8 @@ impl SpotifyService {
             "user-modify-playback-state",
             "user-read-playback-state",
             "playlist-read-private",
-            "playlist-read-collaborative"
+            "playlist-read-collaborative",
+            "streaming"
         ))
         .ok_or_else(|| "RSPOTIFY_REDIRECT_URI is missing from .env".to_owned())?;
         let config = Config {
@@ -96,6 +105,17 @@ impl SpotifyService {
             return;
         };
         *spotify.token.lock().await.unwrap() = Some(token);
+
+        // Try to transfer playback to our internal player
+        if let Ok(devices) = spotify.device().await
+            && let Some(id) = devices
+                .into_iter()
+                .find(|device| device.name == "Listening Room Player")
+                .and_then(|device| device.id)
+        {
+            let _ = spotify.transfer_playback(&id, Some(false)).await;
+        }
+
         *self.client.write().await = Some(Arc::new(spotify));
     }
 
@@ -138,6 +158,11 @@ impl SpotifyService {
             current: playback.item.as_ref().and_then(track_from_item),
             next,
             device_name: Some(playback.device.name),
+            volume_percent: playback
+                .device
+                .volume_percent
+                .and_then(|volume| u8::try_from(volume).ok())
+                .filter(|volume| *volume <= 100),
             can_play: !disallows.contains(&DisallowKey::Resuming),
             can_pause: !disallows.contains(&DisallowKey::Pausing),
             can_skip_next: !disallows.contains(&DisallowKey::SkippingNext),
@@ -219,7 +244,10 @@ impl SpotifyService {
 
     pub async fn play(&self) -> Result<(), String> {
         spotify_result(
-            self.client().await?.resume_playback(None, None).await,
+            self.client()
+                .await?
+                .resume_playback(Some(LOCAL_DEVICE_ID), None)
+                .await,
             "Resume playback",
         )
         .await
@@ -227,7 +255,10 @@ impl SpotifyService {
 
     pub async fn pause(&self) -> Result<(), String> {
         spotify_result(
-            self.client().await?.pause_playback(None).await,
+            self.client()
+                .await?
+                .pause_playback(Some(LOCAL_DEVICE_ID))
+                .await,
             "Pause playback",
         )
         .await
@@ -235,7 +266,7 @@ impl SpotifyService {
 
     pub async fn next(&self) -> Result<(), String> {
         spotify_result(
-            self.client().await?.next_track(None).await,
+            self.client().await?.next_track(Some(LOCAL_DEVICE_ID)).await,
             "Skip to next track",
         )
         .await
@@ -243,8 +274,23 @@ impl SpotifyService {
 
     pub async fn previous(&self) -> Result<(), String> {
         spotify_result(
-            self.client().await?.previous_track(None).await,
+            self.client()
+                .await?
+                .previous_track(Some(LOCAL_DEVICE_ID))
+                .await,
             "Return to previous track",
+        )
+        .await
+    }
+
+    pub async fn set_volume(&self, volume: u8) -> Result<(), String> {
+        let volume = validate_volume(volume)?;
+        spotify_result(
+            self.client()
+                .await?
+                .volume(volume, Some(LOCAL_DEVICE_ID))
+                .await,
+            "Set volume",
         )
         .await
     }
@@ -262,13 +308,15 @@ impl SpotifyService {
         let spotify = self.client().await?;
         spotify_result(
             spotify
-                .start_uris_playback(playable, None, None, None)
+                .start_uris_playback(playable, Some(LOCAL_DEVICE_ID), None, None)
                 .await,
             "Play selected collection",
         )
         .await?;
         spotify_result(
-            spotify.repeat(RepeatState::Context, None).await,
+            spotify
+                .repeat(RepeatState::Context, Some(LOCAL_DEVICE_ID))
+                .await,
             "Loop collection",
         )
         .await
@@ -277,13 +325,22 @@ impl SpotifyService {
     pub async fn queue_uri(&self, uri: &str) -> Result<(), String> {
         let playable = playable_from_uri(uri)?;
         spotify_result(
-            self.client().await?.add_item_to_queue(playable, None).await,
+            self.client()
+                .await?
+                .add_item_to_queue(playable, Some(LOCAL_DEVICE_ID))
+                .await,
             "Add track to queue",
         )
         .await?;
         self.queue_cache.write().await.fetched_at = None;
         Ok(())
     }
+}
+
+fn validate_volume(volume: u8) -> Result<u8, String> {
+    (volume <= 100)
+        .then_some(volume)
+        .ok_or_else(|| "Volume must be between 0 and 100".to_owned())
 }
 
 fn collection_playback_order(uris: &[String], start_uri: &str) -> Result<Vec<String>, String> {
@@ -457,6 +514,14 @@ mod tests {
         assert_eq!(
             collection_playback_order(&uris, "second").unwrap(),
             ["second", "third", "first"]
+        );
+    }
+
+    #[test]
+    fn volume_should_reject_values_above_spotify_range() {
+        assert_eq!(
+            validate_volume(101).unwrap_err(),
+            "Volume must be between 0 and 100"
         );
     }
 }

@@ -1,5 +1,6 @@
 mod audio;
 mod models;
+mod player;
 mod spotify;
 
 use models::{PlaybackState, Playlist, Track};
@@ -73,12 +74,25 @@ async fn queue_uri(uri: String, service: State<'_, SpotifyService>) -> Result<()
     service.queue_uri(&uri).await
 }
 
+#[tauri::command]
+async fn set_volume(volume: u8, service: State<'_, SpotifyService>) -> Result<(), String> {
+    service.set_volume(volume).await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
+
     tauri::Builder::default()
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
+
+            let player_dir = app_data_dir.clone();
+            tauri::async_runtime::spawn(async move {
+                player::start_headless_player(player_dir).await;
+            });
+
             app.manage(SpotifyService::new(app_data_dir.join("spotify-token.json")));
             #[cfg(windows)]
             audio::start(app.handle().clone());
@@ -96,7 +110,8 @@ pub fn run() {
             previous,
             play_uri,
             play_collection,
-            queue_uri
+            queue_uri,
+            set_volume
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Listening Room");

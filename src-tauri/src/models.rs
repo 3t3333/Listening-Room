@@ -18,6 +18,7 @@ pub struct PlaybackState {
     pub current: Option<Track>,
     pub next: Option<Track>,
     pub device_name: Option<String>,
+    pub volume_percent: Option<u8>,
     pub can_play: bool,
     pub can_pause: bool,
     pub can_skip_next: bool,

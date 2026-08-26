@@ -20,6 +20,7 @@ const emptyPlayback: PlaybackState = {
   current: null,
   next: null,
   deviceName: null,
+  volumePercent: null,
   canPlay: false,
   canPause: false,
   canSkipNext: false,
@@ -229,6 +230,7 @@ function playbackEqual(left: PlaybackState, right: PlaybackState) {
     && trackKey(left.current) === trackKey(right.current)
     && trackKey(left.next) === trackKey(right.next)
     && left.deviceName === right.deviceName
+    && left.volumePercent === right.volumePercent
     && left.canPlay === right.canPlay
     && left.canPause === right.canPause
     && left.canSkipNext === right.canSkipNext

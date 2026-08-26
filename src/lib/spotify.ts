@@ -14,6 +14,7 @@ export interface PlaybackState {
   current: Track | null;
   next: Track | null;
   deviceName: string | null;
+  volumePercent: number | null;
   canPlay: boolean;
   canPause: boolean;
   canSkipNext: boolean;
@@ -39,4 +40,5 @@ export const spotify = {
   playUri: (uri: string) => invoke<void>("play_uri", { uri }),
   playCollection: (uris: string[], startUri: string) => invoke<void>("play_collection", { uris, startUri }),
   queueUri: (uri: string) => invoke<void>("queue_uri", { uri }),
+  setVolume: (volume: number) => invoke<void>("set_volume", { volume }),
 };
