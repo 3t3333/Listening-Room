@@ -1,7 +1,7 @@
 import { Plus } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { addTrackToCollection, isTrackCollected } from "../lib/collections";
-import type { Track } from "../lib/spotify";
+import type { Track } from "../lib/player";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { InteractiveSleeve } from "./InteractiveSleeve";

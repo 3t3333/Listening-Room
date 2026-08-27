@@ -1,7 +1,7 @@
 import { ArrowLeft, Check, Disc3, FolderPlus, ListPlus, Play, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
 import { addTrackToCollection, getCollections, isTrackInCollection, recentCollectionId, removeTrackFromCollection, type Collection } from "../lib/collections";
-import type { Track } from "../lib/spotify";
+import type { Track } from "../lib/player";
 import { InteractiveSleeve } from "./InteractiveSleeve";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";

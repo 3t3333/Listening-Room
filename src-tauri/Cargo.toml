@@ -8,22 +8,28 @@ edition = "2024"
 name = "listening_room_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+legacy-web-api = ["dep:dotenvy", "dep:rspotify"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-dotenvy = "0.15.7"
+cpal = "0.16.0"
+dotenvy = { version = "0.15.7", optional = true }
 env_logger = "0.11.11"
 futures = "0.3.31"
-librespot = { version = "0.8.0", default-features = false, features = ["rodio-backend", "rustls-tls-native-roots", "with-libmdns"] }
-librespot-oauth = { version = "0.8.0", default-features = false, features = ["rustls-tls-native-roots"] }
+librespot = { git = "https://github.com/3t3333/librespot", rev = "3c9901c", default-features = false, features = ["rodio-backend", "rustls-tls-native-roots", "with-libmdns"] }
+librespot-oauth = { git = "https://github.com/3t3333/librespot", rev = "3c9901c", default-features = false, features = ["rustls-tls-native-roots"] }
 log = "0.4.34"
-rspotify = { version = "0.16.1", features = ["cli"] }
+rspotify = { version = "0.16.1", features = ["cli"], optional = true }
 rustfft = "6.4.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri = { version = "2", features = [] }
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["rt", "sync", "time"] }
+uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(windows)'.dependencies]
 wasapi = "0.24.0"

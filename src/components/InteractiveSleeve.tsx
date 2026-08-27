@@ -1,6 +1,6 @@
 import { Disc3 } from "lucide-react";
 import { useEffect, useRef, type PointerEvent } from "react";
-import type { Track } from "../lib/spotify";
+import type { Track } from "../lib/player";
 import { cn } from "../lib/utils";
 
 export function InteractiveSleeve({ track, className }: { track: Track | null; className?: string }) {

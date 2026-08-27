@@ -1,5 +1,5 @@
 import { Disc3 } from "lucide-react";
-import type { Track } from "../lib/spotify";
+import type { Track } from "../lib/player";
 
 export function VinylRecord({ track, isPlaying }: { track: Track | null; isPlaying: boolean }) {
   return (

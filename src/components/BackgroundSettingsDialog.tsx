@@ -1,13 +1,49 @@
-import { ImagePlus, Palette, SlidersHorizontal, Trash2 } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2 } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
+import { player, type AudioOutputState } from "../lib/player";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"background" | "audio">("background");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [audio, setAudio] = useState<AudioOutputState | null>(null);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  async function loadAudioOutputs() {
+    setAudioLoading(true);
+    setError(null);
+    try {
+      setAudio(await player.audioOutputs());
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setAudioLoading(false);
+    }
+  }
+
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (next) void loadAudioOutputs();
+  }
+
+  async function selectAudioOutput(event: ChangeEvent<HTMLSelectElement>) {
+    const output = event.target.value || null;
+    setAudioLoading(true);
+    setError(null);
+    try {
+      await player.setAudioOutput(output);
+      setAudio((current) => current ? { ...current, selected: output } : current);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setAudioLoading(false);
+    }
+  }
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -37,16 +73,19 @@ export function BackgroundSettingsDialog({ background, children }: { background:
   }
 
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={changeOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="settings-dialog">
-        <DialogDescription className="visually-hidden">Customize the Listening Room background</DialogDescription>
+        <DialogDescription className="visually-hidden">Customize Listening Room</DialogDescription>
         <aside className="settings-sidebar">
           <DialogTitle>Settings</DialogTitle>
-          <button className="settings-tab active"><SlidersHorizontal size={15} />Background</button>
+          <div className="settings-tabs">
+            <button type="button" className={`settings-tab ${tab === "background" ? "active" : ""}`} onClick={() => setTab("background")}><SlidersHorizontal size={15} />Background</button>
+            <button type="button" className={`settings-tab ${tab === "audio" ? "active" : ""}`} onClick={() => setTab("audio")}><Speaker size={15} />Audio output</button>
+          </div>
         </aside>
-        <section className="settings-panel">
-          <header><span>Appearance</span><h2>Custom background</h2><p>Use your own image behind both listening-room themes.</p></header>
+        {tab === "background" ? <section className="settings-panel">
+          <header><span>Appearance</span><h2>Custom background</h2><p>Use your own image behind all listening-room themes.</p></header>
 
           <div className={`background-preview ${background.imageUrl ? "has-image" : ""}`}>
             {background.imageUrl ? <img src={background.imageUrl} alt="Custom background preview" /> : <ImagePlus />}
@@ -76,7 +115,22 @@ export function BackgroundSettingsDialog({ background, children }: { background:
             <i />
           </button>
           {error && <small className="settings-error">{error}</small>}
-        </section>
+        </section> : <section className="settings-panel audio-settings-panel">
+          <header><span>Playback</span><h2>Audio output</h2><p>Choose where Listening Room sends Spotify audio. Changing output briefly reconnects the Spotify Connect player.</p></header>
+
+          <div className="audio-output-card">
+            <Speaker size={22} />
+            <label htmlFor="audio-output"><strong>Playback device</strong><small>The selection is restored on future launches.</small></label>
+            <select id="audio-output" value={audio?.selected ?? ""} onChange={selectAudioOutput} disabled={audioLoading || !audio}>
+              <option value="">System default{audio?.defaultOutput ? ` (${audio.defaultOutput})` : ""}</option>
+              {audio?.selected && !audio.devices.includes(audio.selected) && <option value={audio.selected}>{audio.selected} (unavailable)</option>}
+              {audio?.devices.map((device) => <option key={device} value={device}>{device}</option>)}
+            </select>
+          </div>
+
+          <Button variant="ghost" className="audio-refresh" onClick={() => void loadAudioOutputs()} disabled={audioLoading}><RefreshCw size={14} />{audioLoading ? "Checking outputs..." : "Refresh outputs"}</Button>
+          {error && <small className="settings-error">{error}</small>}
+        </section>}
       </DialogContent>
     </Dialog>
   );

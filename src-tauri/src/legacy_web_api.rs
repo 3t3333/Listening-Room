@@ -1,3 +1,5 @@
+#![expect(dead_code, reason = "archived behind the non-default legacy feature")]
+
 use std::{
     path::PathBuf,
     sync::Arc,
@@ -15,7 +17,7 @@ use rspotify::{
 use serde_json::Value;
 use tokio::sync::{Mutex, RwLock};
 
-use crate::models::{PlaybackState, Playlist, Track};
+use crate::models::{PlaybackState, PlayerStatus, Playlist, Track};
 
 const LOCAL_DEVICE_ID: &str = "9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d";
 
@@ -153,7 +155,9 @@ impl SpotifyService {
         let disallows = &playback.actions.disallows;
 
         let state = PlaybackState {
+            status: PlayerStatus::Ready,
             connected: true,
+            active: true,
             is_playing: playback.is_playing,
             current: playback.item.as_ref().and_then(track_from_item),
             next,
@@ -167,6 +171,7 @@ impl SpotifyService {
             can_pause: !disallows.contains(&DisallowKey::Pausing),
             can_skip_next: !disallows.contains(&DisallowKey::SkippingNext),
             can_skip_previous: !disallows.contains(&DisallowKey::SkippingPrev),
+            error: None,
         };
         *self.playback_cache.write().await = Some(state.clone());
         Ok(state)

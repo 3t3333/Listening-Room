@@ -5,7 +5,7 @@ import { InteractiveSleeve } from "../components/InteractiveSleeve";
 import { PlayerControls } from "../components/PlayerControls";
 import { Button } from "../components/ui/button";
 import { getCollections, recentCollectionId, type Collection } from "../lib/collections";
-import { spotify, type Track } from "../lib/spotify";
+import { player, type Track } from "../lib/player";
 import type { ThemeProps } from "./types";
 
 interface Props extends ThemeProps {
@@ -33,6 +33,7 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
   const focusTarget = useRef<HTMLDivElement>(null);
   const liftedSleeve = useRef<HTMLDivElement>(null);
   const focusCloseTimer = useRef(0);
+  const queueRequest = useRef(0);
   const collection = collections.find((item) => item.id === collectionId) ?? null;
   const { primary: [red, green, blue] } = background.palette;
   const style = { "--ambient-rgb": `${red}, ${green}, ${blue}` } as CSSProperties;
@@ -48,6 +49,14 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
   }, []);
 
   useEffect(() => () => window.clearTimeout(focusCloseTimer.current), []);
+
+  useEffect(() => {
+    if (!queueOpen) return;
+    const timer = window.setInterval(() => {
+      void refreshQueue(false);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [queueOpen]);
 
   useEffect(() => {
     if (!focusedRecord) return;
@@ -84,7 +93,7 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
     setNotice(null);
     try {
       await onQueueTrack(track);
-      setNotice("Added to the Spotify queue");
+      setNotice("Queue request sent to Spotify");
     } catch (reason) {
       setError(String(reason));
     }
@@ -115,15 +124,27 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
 
   async function loadQueue() {
     setQueueOpen(true);
-    setQueueLoading(true);
+    await refreshQueue(true);
+  }
+
+  async function refreshQueue(showLoading: boolean) {
+    const request = ++queueRequest.current;
+    if (showLoading) setQueueLoading(true);
     setError(null);
     try {
-      setQueueTracks(await spotify.queue());
+      const tracks = await player.queue();
+      if (request === queueRequest.current) setQueueTracks(tracks);
     } catch (reason) {
-      setError(String(reason));
+      if (request === queueRequest.current) setError(String(reason));
     } finally {
-      setQueueLoading(false);
+      if (request === queueRequest.current) setQueueLoading(false);
     }
+  }
+
+  function closeQueue() {
+    queueRequest.current++;
+    setQueueLoading(false);
+    setQueueOpen(false);
   }
 
   return (
@@ -132,7 +153,7 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
       <div className="archive-ambient" />
       <div className="archive-room">
         {queueOpen ? (
-          <QueueShelves tracks={queueTracks} loading={queueLoading} onBack={() => setQueueOpen(false)} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
+          <QueueShelves tracks={queueTracks} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
         ) : collection ? (
           <CollectionShelves collection={collection} onBack={closeCollection} onInspect={inspectTrack} />
         ) : (

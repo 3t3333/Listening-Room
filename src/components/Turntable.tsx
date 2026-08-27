@@ -1,5 +1,5 @@
 import { Disc3 } from "lucide-react";
-import type { Track } from "../lib/spotify";
+import type { Track } from "../lib/player";
 import { TrackDetailsDialog } from "./TrackDetailsDialog";
 
 interface Props {

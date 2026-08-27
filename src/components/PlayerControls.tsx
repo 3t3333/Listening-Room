@@ -1,6 +1,6 @@
 import { Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
-import { type PlaybackState, spotify } from "../lib/spotify";
+import { type PlaybackState, player } from "../lib/player";
 import { Button } from "./ui/button";
 
 interface Props {
@@ -23,14 +23,15 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
   }, [playback.volumePercent]);
 
   useEffect(() => {
+    if (!playback.active) return;
     const timer = window.setTimeout(() => {
       if (submittedVolume !== volume) {
         setSubmittedVolume(volume);
-        spotify.setVolume(volume).catch(console.error);
+        player.setVolume(volume).catch(console.error);
       }
     }, 150);
     return () => window.clearTimeout(timer);
-  }, [volume, submittedVolume]);
+  }, [playback.active, volume, submittedVolume]);
 
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   const volumeStyle = { "--volume-fill": `${volume}%` } as CSSProperties;
@@ -46,7 +47,7 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
       </div>
 
       <div className="volume-control">
-        <button className="volume-trigger" type="button" aria-label={`Volume ${volume}%`} title={`Volume ${volume}%`}>
+        <button className="volume-trigger" type="button" disabled={!playback.active} aria-label={`Volume ${volume}%`} title={`Volume ${volume}%`}>
           <VolumeIcon />
         </button>
         <div className="volume-panel" style={volumeStyle}>
@@ -56,6 +57,7 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
             max="100"
             step="1"
             value={volume}
+            disabled={!playback.active}
             onChange={(event) => setVolume(Number(event.target.value))}
             aria-label="Playback volume"
             aria-valuetext={`${volume}%`}

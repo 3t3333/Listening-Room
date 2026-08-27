@@ -1,7 +1,7 @@
 import { Disc3, LoaderCircle, Play } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Playlist, Track } from "../lib/spotify";
-import { spotify } from "../lib/spotify";
+import type { Playlist, Track } from "../lib/player";
+import { legacyWebApi } from "../lib/legacyWebApi";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 
@@ -28,7 +28,7 @@ export function LibraryDialog({ playlists, loading: playlistsLoading, error, onR
     }
     setLoading(true);
     try {
-      const loaded = await spotify.playlistTracks(playlist.id);
+      const loaded = await legacyWebApi.playlistTracks(playlist.id);
       trackCache.current.set(playlist.id, loaded);
       setTracks(loaded);
     } finally {
@@ -49,7 +49,7 @@ export function LibraryDialog({ playlists, loading: playlistsLoading, error, onR
         {selected ? (
           <div className="track-list">
             {loading ? <LoaderCircle className="spinner" /> : tracks.map((track, index) => (
-              <button className="track-row" key={`${track.name}-${index}`} onClick={() => track.uri && spotify.playUri(track.uri)}>
+              <button className="track-row" key={`${track.name}-${index}`} onClick={() => track.uri && legacyWebApi.playUri(track.uri)}>
                 <span>{String(index + 1).padStart(2, "0")}</span>
                 {track.imageUrl ? <img src={track.imageUrl} alt="" /> : <Disc3 />}
                 <span className="track-copy"><strong>{track.name}</strong><small>{track.artist}</small></span>

@@ -1,4 +1,4 @@
-import type { Track } from "./spotify";
+import type { Track } from "./player";
 
 export interface Collection {
   id: string;

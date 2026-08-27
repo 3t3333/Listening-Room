@@ -2,6 +2,17 @@ use serde::Serialize;
 
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub enum PlayerStatus {
+    #[default]
+    AuthenticationRequired,
+    Connecting,
+    Ready,
+    Reconnecting,
+    Error,
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Track {
     pub name: String,
     pub artist: String,
@@ -13,7 +24,9 @@ pub struct Track {
 #[derive(Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaybackState {
+    pub status: PlayerStatus,
     pub connected: bool,
+    pub active: bool,
     pub is_playing: bool,
     pub current: Option<Track>,
     pub next: Option<Track>,
@@ -23,8 +36,10 @@ pub struct PlaybackState {
     pub can_pause: bool,
     pub can_skip_next: bool,
     pub can_skip_previous: bool,
+    pub error: Option<String>,
 }
 
+#[cfg(feature = "legacy-web-api")]
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Playlist {

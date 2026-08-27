@@ -9,7 +9,9 @@ export interface Track {
 }
 
 export interface PlaybackState {
+  status: "authenticationRequired" | "connecting" | "ready" | "reconnecting" | "error";
   connected: boolean;
+  active: boolean;
   isPlaying: boolean;
   current: Track | null;
   next: Track | null;
@@ -19,6 +21,7 @@ export interface PlaybackState {
   canPause: boolean;
   canSkipNext: boolean;
   canSkipPrevious: boolean;
+  error: string | null;
 }
 
 export interface Playlist {
@@ -27,18 +30,23 @@ export interface Playlist {
   imageUrl: string | null;
 }
 
-export const spotify = {
+export interface AudioOutputState {
+  devices: string[];
+  defaultOutput: string | null;
+  selected: string | null;
+}
+
+export const player = {
   connect: () => invoke<void>("connect_spotify"),
   playback: () => invoke<PlaybackState>("get_playback_state"),
-  playlists: () => invoke<Playlist[]>("get_playlists"),
-  playlistTracks: (id: string) => invoke<Track[]>("get_playlist_tracks", { id }),
   queue: () => invoke<Track[]>("get_queue"),
   play: () => invoke<void>("play"),
   pause: () => invoke<void>("pause"),
   next: () => invoke<void>("next"),
   previous: () => invoke<void>("previous"),
-  playUri: (uri: string) => invoke<void>("play_uri", { uri }),
   playCollection: (uris: string[], startUri: string) => invoke<void>("play_collection", { uris, startUri }),
   queueUri: (uri: string) => invoke<void>("queue_uri", { uri }),
   setVolume: (volume: number) => invoke<void>("set_volume", { volume }),
+  audioOutputs: () => invoke<AudioOutputState>("get_audio_outputs"),
+  setAudioOutput: (output: string | null) => invoke<void>("set_audio_output", { output }),
 };

@@ -1,6 +1,6 @@
 # Listening Room
 
-Listening Room is an experimental Spotify desktop player built around tactile vinyl interfaces, spatial listening-room themes, and live system-audio visualization. The project currently targets Windows and is hosted in the `spotify-player` repository until its final name is chosen.
+Listening Room is an experimental Spotify desktop player built around tactile vinyl interfaces, spatial listening-room themes, and live system-audio visualization. It uses librespot for playback and Spotify Connect, so installing the application does not require a Spotify developer application or API credentials.
 
 ## Features
 
@@ -19,28 +19,29 @@ Listening Room is an experimental Spotify desktop player built around tactile vi
 - Rust 2024
 - React 19 and TypeScript
 - Vite 7
-- RSpotify
+- librespot and Spotify Connect
 - Windows WASAPI and RustFFT
 
 ## Requirements
 
 - Windows 10 or 11
-- Node.js 20 or newer
-- Rust stable toolchain
-- Microsoft C++ Build Tools and the Windows SDK
 - Microsoft Edge WebView2 Runtime
-- A Spotify developer application and Spotify account with playback support
+- A Spotify Premium account
 
-## Spotify Setup
+## First Run
 
-1. Create an application in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
-2. Register `http://127.0.0.1:8888/callback` as a redirect URI.
-3. Copy `.env.example` to `.env`.
-4. Fill in your Spotify client ID and client secret.
+1. Install and open Listening Room.
+2. Select **Connect Spotify**.
+3. Complete Spotify sign-in in the browser window.
+4. Return to Listening Room and select it as the active device from another Spotify client if playback has not transferred automatically.
 
-Never commit `.env` or real Spotify credentials. Desktop-distributed client secrets cannot be treated as private; rotate any credential that has previously been exposed.
+The authenticated session is cached in the application data directory and restored on future launches. Listening Room appears as a Spotify Connect device and synchronizes the active device's upcoming queue.
+
+Select the record icon in the top-left corner to open Settings. **Audio output** can follow the Windows default or target a specific connected device; changing it briefly reconnects Listening Room to Spotify.
 
 ## Development
+
+Development requires Node.js 20 or newer, the stable Rust toolchain, Microsoft C++ Build Tools, and the Windows SDK.
 
 Install dependencies:
 
@@ -63,16 +64,29 @@ npm run build
 Run Rust verification:
 
 ```powershell
-cargo test --locked
-cargo clippy --all-targets --all-features --locked -- -D warnings
+cargo test --manifest-path src-tauri/Cargo.toml --locked
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
+cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features --locked -- -D warnings
 ```
+
+Build the Windows installer:
+
+```powershell
+npm run tauri build
+```
+
+The NSIS installer is written to `target/release/bundle/nsis/`.
 
 ## Local Data
 
 - Collections and lightweight preferences use browser local storage.
 - Uploaded custom backgrounds are stored as Blobs in IndexedDB.
-- Spotify credentials remain in the ignored `.env` file.
+- Librespot credentials, volume, audio output selection, audio cache, and the generated device ID are stored under the application data directory.
 - Build artifacts and downloaded design references are not tracked.
+
+## Legacy Web API
+
+The retired RSpotify implementation is archived behind the non-default `legacy-web-api` Cargo feature so it continues to type-check without entering normal builds. Its commands are not registered in the current runtime; it is retained as migration reference and is not required for playback, metadata, collections, or queue synchronization.
 
 ## Branches
 

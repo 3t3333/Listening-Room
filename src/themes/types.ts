@@ -1,5 +1,5 @@
 import type { ArtworkPalette } from "../hooks/useArtworkColor";
-import type { PlaybackState } from "../lib/spotify";
+import type { PlaybackState } from "../lib/player";
 
 export interface BackgroundPresentation {
   imageUrl: string | null;
