@@ -1,8 +1,6 @@
 use std::{
     collections::HashMap,
     fs,
-    io::Write,
-    net::TcpStream,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -38,8 +36,6 @@ use uuid::Uuid;
 use crate::models::{PlaybackState, PlayerStatus, Track};
 
 const DEVICE_NAME: &str = "Listening Room Player";
-const OAUTH_REDIRECT_URI: &str = "http://127.0.0.1:8898/login";
-const OAUTH_TIMEOUT: Duration = Duration::from_secs(300);
 const METADATA_CACHE_LIMIT: usize = 240;
 const AUDIO_OUTPUT_FILE: &str = "audio-output";
 
@@ -275,7 +271,7 @@ async fn run_daemon(
                         state.status = PlayerStatus::Connecting;
                         state.error = None;
                     });
-                    match authenticate(session_config.client_id.clone(), &mut commands).await {
+                    match authenticate(session_config.device_id.clone(), session_config.client_id.clone(), &mut commands).await {
                         AuthenticationExit::Authenticated(next) => {
                             credentials = Some(next);
                             let _ = reply.send(Ok(()));
@@ -714,55 +710,31 @@ enum AuthenticationExit {
 }
 
 async fn authenticate(
+    device_id: String,
     client_id: String,
     commands: &mut mpsc::UnboundedReceiver<DaemonCommand>,
 ) -> AuthenticationExit {
-    let mut task = tauri::async_runtime::spawn_blocking(move || {
-        librespot_oauth::OAuthClientBuilder::new(&client_id, OAUTH_REDIRECT_URI, vec!["streaming"])
-            .open_in_browser()
-            .with_custom_message("Spotify is connected. You can return to Listening Room.")
-            .build()
-            .map_err(|error| error.to_string())?
-            .get_access_token()
-            .map(|token| Credentials::with_access_token(token.access_token))
-            .map_err(|error| error.to_string())
-    });
-    let timeout = tokio::time::sleep(OAUTH_TIMEOUT);
-    tokio::pin!(timeout);
+    let mut discovery = match librespot::discovery::Discovery::builder(device_id, client_id)
+        .name(DEVICE_NAME)
+        .device_type(DeviceType::Computer)
+        .launch()
+    {
+        Ok(d) => d,
+        Err(e) => return AuthenticationExit::Failed(e.to_string()),
+    };
 
     loop {
         tokio::select! {
-            result = &mut task => return match result {
-                Ok(Ok(credentials)) => AuthenticationExit::Authenticated(credentials),
-                Ok(Err(error)) => AuthenticationExit::Failed(error),
-                Err(error) => AuthenticationExit::Failed(error.to_string()),
-            },
-            _ = &mut timeout => {
-                task.abort();
-                interrupt_oauth_listener().await;
-                let _ = tokio::time::timeout(Duration::from_secs(2), &mut task).await;
-                return AuthenticationExit::Failed("Spotify sign-in timed out. Please try again.".to_owned());
-            },
-            command = commands.recv() => match command {
-                Some(DaemonCommand::Shutdown) | None => {
-                    task.abort();
-                    interrupt_oauth_listener().await;
-                    let _ = tokio::time::timeout(Duration::from_secs(2), &mut task).await;
-                    return AuthenticationExit::Shutdown;
+            credentials = discovery.next() => {
+                if let Some(credentials) = credentials {
+                    return AuthenticationExit::Authenticated(credentials);
                 }
-                Some(command) => reject_command(command, "Spotify sign-in is already in progress"),
-            },
+            }
+            command = commands.recv() => match command {
+                Some(DaemonCommand::Shutdown) | None => return AuthenticationExit::Shutdown,
+                Some(command) => reject_command(command, "The Spotify player is waiting for connection"),
+            }
         }
-    }
-}
-
-async fn interrupt_oauth_listener() {
-    for _ in 0..100 {
-        if let Ok(mut stream) = TcpStream::connect("127.0.0.1:8898") {
-            let _ = stream.write_all(b"GET /cancel HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
-            return;
-        }
-        tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
 

@@ -1,10 +1,10 @@
-import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw } from "lucide-react";
+import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, Plus } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { CustomBackground } from "../components/CustomBackground";
 import { InteractiveSleeve } from "../components/InteractiveSleeve";
 import { PlayerControls } from "../components/PlayerControls";
 import { Button } from "../components/ui/button";
-import { getCollections, recentCollectionId, type Collection } from "../lib/collections";
+import { getCollections, recentCollectionId, addTrackToCollection, isTrackCollected, type Collection } from "../lib/collections";
 import { player, type Track } from "../lib/player";
 import type { ThemeProps } from "./types";
 
@@ -193,6 +193,20 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
               <div className="collection-focus-actions">
                 <Button onClick={(event) => { event.stopPropagation(); void playTrack(focusedRecord.track, focusedRecord.collection); }} disabled={!focusedRecord.track.uri}><Play size={16} fill="currentColor" />Play from here</Button>
                 <Button variant="outline" onClick={(event) => { event.stopPropagation(); void queueTrack(focusedRecord.track); }} disabled={!focusedRecord.track.uri}><ListPlus size={16} />Queue next</Button>
+                <Button 
+                  variant="outline" 
+                  onClick={(event) => { 
+                    event.stopPropagation(); 
+                    if (focusedRecord.track.uri && !isTrackCollected(focusedRecord.track)) {
+                      addTrackToCollection(focusedRecord.track);
+                      setNotice("Added to My Collection");
+                    }
+                  }} 
+                  disabled={!focusedRecord.track.uri || isTrackCollected(focusedRecord.track)}
+                >
+                  <Plus size={16} />
+                  {isTrackCollected(focusedRecord.track) ? "Added" : "Add to collection"}
+                </Button>
               </div>
               {notice && <small className="collection-action-notice">{notice}</small>}
               {error && <small className="collection-play-error">{error}</small>}

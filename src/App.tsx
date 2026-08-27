@@ -170,10 +170,7 @@ export function App() {
 
   async function playCollectedTrack(track: Track, collection: Track[] = [track]) {
     if (!track.uri) throw new Error("This record does not have a Spotify URI.");
-    const userTracks = getCollections().find((item) => item.id === defaultCollectionId)?.tracks ?? [];
-    const trackInUserCollection = userTracks.some((item) => trackKey(item) === trackKey(track));
-    const playbackTracks = trackInUserCollection ? userTracks : [track, ...userTracks.filter((item) => trackKey(item) !== trackKey(track))];
-    const uris = (playbackTracks.length ? playbackTracks : collection).flatMap((item) => item.uri ? [item.uri] : []);
+    const uris = collection.flatMap((item) => item.uri ? [item.uri] : []);
     const sequence = ++selectionSequence.current;
     window.clearTimeout(selectionTimer.current);
     setPendingTrack(track);

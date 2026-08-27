@@ -2705,7 +2705,6 @@ dependencies = [
  "env_logger",
  "futures",
  "librespot",
- "librespot-oauth",
  "log",
  "rspotify",
  "rustfft",
