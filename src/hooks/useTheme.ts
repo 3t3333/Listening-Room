@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
-export type ThemeId = "warm" | "midnight" | "archive";
+export type ThemeId = "warm" | "midnight" | "dj-setup" | "archive" | "visualizer-stand";
 
 const storageKey = "listening-room-theme";
-const themes: ThemeId[] = ["warm", "midnight", "archive"];
+const themes: ThemeId[] = ["warm", "midnight", "visualizer-stand", "archive", "dj-setup"];
 
 export function useTheme() {
   const [theme, setTheme] = useState<ThemeId>(() => {

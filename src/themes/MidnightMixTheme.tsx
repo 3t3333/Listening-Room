@@ -3,6 +3,7 @@ import { Disc3 } from "lucide-react";
 import { AudioVisualizer } from "../components/AudioVisualizer";
 import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
+import { ScrollingTitle } from "../components/ScrollingTitle";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
 import { VinylRecord } from "../components/VinylRecord";
 import { useArtworkPalette } from "../hooks/useArtworkColor";
@@ -38,7 +39,7 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
 
       <div className="midnight-meta">
         <div>
-          <h1>{track?.name ?? "Nothing playing"}</h1>
+          <ScrollingTitle>{track?.name ?? "Nothing playing"}</ScrollingTitle>
           <p>{track?.artist ?? "Choose a record from your library"}</p>
         </div>
         <PlayerControls compact playback={playback} onToggle={onToggle} onPrevious={onPrevious} onNext={onNext} />

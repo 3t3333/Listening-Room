@@ -1,9 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
+import { mapTrackArtwork } from "./customArtwork";
 
 export interface Track {
   name: string;
   artist: string;
   imageUrl: string | null;
+  originalImageUrl?: string | null;
   uri: string | null;
   durationMs: number | null;
 }
@@ -30,6 +32,14 @@ export interface Playlist {
   imageUrl: string | null;
 }
 
+export interface AlbumImport {
+  name: string;
+  artist: string;
+  artistImageUrl: string | null;
+  year: number | null;
+  tracks: Track[];
+}
+
 export interface AudioOutputState {
   devices: string[];
   defaultOutput: string | null;
@@ -39,7 +49,11 @@ export interface AudioOutputState {
 export const player = {
   connect: () => invoke<void>("connect_spotify"),
   playback: () => invoke<PlaybackState>("get_playback_state"),
-  queue: () => invoke<Track[]>("get_queue"),
+  queue: () => invoke<Track[]>("get_queue").then(tracks => tracks.map(t => mapTrackArtwork(t) as Track)),
+  getAlbumTracks: (url: string) => invoke<AlbumImport>("get_album_tracks", { url }).then(album => ({
+    ...album,
+    tracks: album.tracks.map(t => mapTrackArtwork(t) as Track)
+  })),
   play: () => invoke<void>("play"),
   pause: () => invoke<void>("pause"),
   next: () => invoke<void>("next"),

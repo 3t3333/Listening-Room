@@ -4,7 +4,7 @@ mod legacy_web_api;
 mod models;
 mod player;
 
-use models::{PlaybackState, Track};
+use models::{PlaybackState, Track, AlbumImport};
 use player::{AudioOutputState, PlayerService};
 use tauri::{Emitter, Manager, State};
 
@@ -21,6 +21,11 @@ async fn get_playback_state(service: State<'_, PlayerService>) -> Result<Playbac
 #[tauri::command]
 async fn get_queue(service: State<'_, PlayerService>) -> Result<Vec<Track>, String> {
     service.queue().await
+}
+
+#[tauri::command]
+async fn get_album_tracks(url: String, service: State<'_, PlayerService>) -> Result<AlbumImport, String> {
+    service.fetch_album(&url).await
 }
 
 #[tauri::command]
@@ -104,6 +109,7 @@ pub fn run() {
             connect_spotify,
             get_playback_state,
             get_queue,
+            get_album_tracks,
             play,
             pause,
             next,
@@ -117,3 +123,5 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("failed to run Listening Room");
 }
+
+

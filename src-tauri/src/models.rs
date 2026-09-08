@@ -47,3 +47,13 @@ pub struct Playlist {
     pub name: String,
     pub image_url: Option<String>,
 }
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AlbumImport {
+    pub name: String,
+    pub artist: String,
+    pub artist_image_url: Option<String>,
+    pub year: Option<i32>,
+    pub tracks: Vec<Track>,
+}

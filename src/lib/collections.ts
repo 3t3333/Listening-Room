@@ -1,8 +1,13 @@
 import type { Track } from "./player";
+import { mapTrackArtwork, unmapTrackArtwork } from "./customArtwork";
 
 export interface Collection {
   id: string;
   name: string;
+  type?: "custom" | "record";
+  artist?: string;
+  artistImageUrl?: string | null;
+  year?: number | null;
   tracks: Track[];
   updatedAt: string;
 }
@@ -32,7 +37,10 @@ export function getCollections(): Collection[] {
     tracks: [],
     updatedAt: now,
   };
-  return [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)];
+  return [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)].map(c => ({
+    ...c,
+    tracks: c.tracks.map(t => mapTrackArtwork(t) as Track)
+  }));
 }
 
 export function addTrackToCollection(track: Track, collectionId = defaultCollectionId) {
@@ -95,11 +103,53 @@ export function isTrackCollected(track: Track) {
   );
 }
 
+export function createCollection(name: string) {
+  const collections = getCollections();
+  const id = `col-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  collections.push({
+    id,
+    name,
+    tracks: [],
+    updatedAt: new Date().toISOString()
+  });
+  saveCollections(collections);
+  return id;
+}
+
+export function importRecord(album: import("./player").AlbumImport) {
+  const collections = getCollections();
+  const id = `rec-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  collections.push({
+    id,
+    name: album.name,
+    type: "record",
+    artist: album.artist,
+    artistImageUrl: album.artistImageUrl,
+    year: album.year,
+    tracks: album.tracks,
+    updatedAt: new Date().toISOString()
+  });
+  saveCollections(collections);
+  return id;
+}
+
+export function deleteCollection(collectionId: string) {
+  if (collectionId === defaultCollectionId || collectionId === recentCollectionId) return false;
+  const collections = getCollections().filter((c) => c.id !== collectionId);
+  saveCollections(collections);
+  window.dispatchEvent(new CustomEvent("collections:changed"));
+  return true;
+}
+
 function trackKey(track: Track) {
   return track.uri ?? `${track.name}\u0000${track.artist}`;
 }
 
 function saveCollections(collections: Collection[]) {
-  localStorage.setItem(storageKey, JSON.stringify(collections));
-  window.dispatchEvent(new CustomEvent("collections:changed", { detail: collections }));
+  const safeCollections = collections.map(c => ({
+    ...c,
+    tracks: c.tracks.map(unmapTrackArtwork)
+  }));
+  localStorage.setItem(storageKey, JSON.stringify(safeCollections));
+  window.dispatchEvent(new CustomEvent("collections:changed", { detail: safeCollections }));
 }

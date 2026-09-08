@@ -1,6 +1,6 @@
 import { ArrowLeft, Check, Disc3, FolderPlus, ListPlus, Play, Trash2 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type WheelEvent } from "react";
-import { addTrackToCollection, getCollections, isTrackInCollection, recentCollectionId, removeTrackFromCollection, type Collection } from "../lib/collections";
+import { addTrackToCollection, getCollections, isTrackInCollection, recentCollectionId, defaultCollectionId, removeTrackFromCollection, deleteCollection, type Collection } from "../lib/collections";
 import type { Track } from "../lib/player";
 import { InteractiveSleeve } from "./InteractiveSleeve";
 import { Button } from "./ui/button";
@@ -28,6 +28,7 @@ export function CollectionsBrowser({ onPlayTrack, onQueueTrack }: { onPlayTrack:
   const [browserView, setBrowserView] = useState<"menu" | "collection">("menu");
   const [collections, setCollections] = useState<Collection[]>(getCollections);
   const [collectionId, setCollectionId] = useState<string | null>(collections[0]?.id ?? null);
+  const lastDeletePress = useRef(0);
   const [activeIndex, setActiveIndex] = useState(0);
   const [hovered, setHovered] = useState<Track | null>(null);
   const [focusedRecord, setFocusedRecord] = useState<FocusedRecord | null>(null);
@@ -112,6 +113,31 @@ export function CollectionsBrowser({ onPlayTrack, onQueueTrack }: { onPlayTrack:
     setBrowserView("collection");
     setNotice(null);
   }
+
+  function handleDeleteCollection() {
+    if (collectionId && deleteCollection(collectionId)) {
+      setCollections(getCollections());
+      setBrowserView("menu");
+    }
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.key === "Delete" || event.key === "Backspace") && browserView === "collection" && collectionId && collectionId !== defaultCollectionId && collectionId !== recentCollectionId && open) {
+        const now = Date.now();
+        if (now - lastDeletePress.current < 600) {
+          lastDeletePress.current = 0;
+          if (window.confirm("Are you sure you want to delete this collection?")) {
+            handleDeleteCollection();
+          }
+        } else {
+          lastDeletePress.current = now;
+        }
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [browserView, collectionId, open]);
 
   function browseWithWheel(event: WheelEvent) {
     event.preventDefault();
@@ -274,7 +300,12 @@ export function CollectionsBrowser({ onPlayTrack, onQueueTrack }: { onPlayTrack:
             <span>{browserView === "menu" ? "Browse" : "Collection"}</span>
             <DialogTitle>{browserView === "menu" ? "Choose a collection" : collection?.name ?? "Your collection"}</DialogTitle>
           </div>
-          <small>{browserView === "menu" ? `${collections.length} collections` : `${tracks.length} ${tracks.length === 1 ? "record" : "records"}`}</small>
+          
+          {browserView === "collection" && collectionId && collectionId !== defaultCollectionId && collectionId !== recentCollectionId ? (
+            <small>Double-press `Del` to delete</small>
+          ) : (
+            <small>{browserView === "menu" ? `${collections.length} collections` : `${tracks.length} ${tracks.length === 1 ? "record" : "records"}`}</small>
+          )}
         </header>
 
         {browserView === "menu" ? (

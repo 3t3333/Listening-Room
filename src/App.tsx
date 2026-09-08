@@ -2,16 +2,19 @@ import { Disc3 } from "lucide-react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { BackgroundSettingsDialog } from "./components/BackgroundSettingsDialog";
-import { CollectionsBrowser } from "./components/CollectionsBrowser";
 import { ThemeIndicator } from "./components/ThemeIndicator";
+import { OnboardingDialog } from "./components/OnboardingDialog";
 import { Button } from "./components/ui/button";
 import { useArtworkPalette } from "./hooks/useArtworkColor";
 import { useCustomBackground } from "./hooks/useCustomBackground";
 import { useTheme } from "./hooks/useTheme";
 import { defaultCollectionId, getCollections, recordRecentlyPlayed } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
+import { mapTrackArtwork } from "./lib/customArtwork";
 import { MidnightMixTheme } from "./themes/MidnightMixTheme";
+import { DjSetupTheme } from "./themes/DjSetupTheme";
 import { ArchiveRoomTheme } from "./themes/ArchiveRoomTheme";
+import { VisualizerStandTheme } from "./themes/VisualizerStandTheme";
 import type { ThemeProps } from "./themes/types";
 import { WarmRoomTheme } from "./themes/WarmRoomTheme";
 
@@ -51,7 +54,8 @@ export function App() {
   const recentTrack = useRef<string | null>(null);
   const backendError = useRef<string | null>(null);
 
-  function applyPlayback(next: PlaybackState) {
+  function applyPlayback(rawNext: PlaybackState) {
+    const next = { ...rawNext, current: mapTrackArtwork(rawNext.current), next: mapTrackArtwork(rawNext.next) };
     const nextTrack = next.current ? trackKey(next.current) : null;
     if (next.current && nextTrack !== recentTrack.current) {
       recentTrack.current = nextTrack;
@@ -94,10 +98,21 @@ export function App() {
       if (cancelled) stopListening();
       else unlisten = stopListening;
     });
+
+    const handleArtworkChanged = () => {
+      setPlayback(current => ({
+        ...current,
+        current: mapTrackArtwork(current.current),
+        next: mapTrackArtwork(current.next),
+      }));
+    };
+    window.addEventListener("artwork:changed", handleArtworkChanged);
+
     void poll();
     return () => {
       cancelled = true;
       unlisten?.();
+      window.removeEventListener("artwork:changed", handleArtworkChanged);
       window.clearTimeout(timer);
       window.clearTimeout(selectionTimer.current);
       window.clearTimeout(zoomNoticeTimer.current);
@@ -132,6 +147,23 @@ export function App() {
     window.addEventListener("keydown", handleZoom);
     return () => window.removeEventListener("keydown", handleZoom);
   }, [pageZoom]);
+
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [hasRequestedConnect, setHasRequestedConnect] = useState(false);
+
+  useEffect(() => {
+    if (playback.connected) {
+      setOnboardingOpen(false);
+      setHasRequestedConnect(false);
+    }
+  }, [playback.connected]);
+
+  useEffect(() => {
+    if (onboardingOpen && playback.status === "authenticationRequired") {
+      setHasRequestedConnect(true);
+      void connect();
+    }
+  }, [onboardingOpen, playback.status]);
 
   async function connect() {
     setConnecting(true);
@@ -224,8 +256,17 @@ export function App() {
         </div>
         <div className="topbar-actions">
           <span className={`status ${playback.connected ? "online" : ""}`} title={playback.error ?? undefined}><i />{statusLabel}</span>
-          <CollectionsBrowser onPlayTrack={playCollectedTrack} onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} />
-          {!playback.connected && playback.status !== "connecting" && playback.status !== "reconnecting" && <Button onClick={connect} disabled={connecting}>{connecting ? "Opening Spotify..." : "Connect Spotify"}</Button>}
+          {!playback.connected && (
+            <OnboardingDialog open={onboardingOpen} onOpenChange={setOnboardingOpen}>
+              {playback.status === "authenticationRequired" || hasRequestedConnect ? (
+                <Button disabled={connecting && playback.status === "authenticationRequired"}>
+                  {connecting && playback.status === "authenticationRequired" ? "Starting..." : "Connect Spotify"}
+                </Button>
+              ) : (
+                <div style={{ display: 'none' }} />
+              )}
+            </OnboardingDialog>
+          )}
         </div>
       </header>
 
@@ -233,6 +274,8 @@ export function App() {
         {theme === "warm" && <WarmRoomTheme {...themeProps} />}
         {theme === "midnight" && <MidnightMixTheme {...themeProps} />}
         {theme === "archive" && <ArchiveRoomTheme {...themeProps} onPlayTrack={playCollectedTrack} onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} />}
+        {theme === "dj-setup" && <DjSetupTheme {...themeProps} />}
+        {theme === "visualizer-stand" && <VisualizerStandTheme {...themeProps} />}
       </div>
 
       <ThemeIndicator theme={theme} onChange={setTheme} />

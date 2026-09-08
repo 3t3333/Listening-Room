@@ -1,12 +1,14 @@
-import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, Plus } from "lucide-react";
+import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, FolderPlus, Disc } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { CustomBackground } from "../components/CustomBackground";
 import { InteractiveSleeve } from "../components/InteractiveSleeve";
 import { PlayerControls } from "../components/PlayerControls";
 import { Button } from "../components/ui/button";
-import { getCollections, recentCollectionId, addTrackToCollection, isTrackCollected, type Collection } from "../lib/collections";
+import { getCollections, recentCollectionId, createCollection, importRecord, type Collection } from "../lib/collections";
 import { player, type Track } from "../lib/player";
 import type { ThemeProps } from "./types";
+import { AddToCollectionPicker } from "../components/AddToCollectionPicker";
+import { RecordPresentation } from "../components/RecordPresentation";
 
 interface Props extends ThemeProps {
   onPlayTrack: (track: Track, collection?: Track[]) => Promise<void>;
@@ -114,6 +116,16 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
       source: { left: source.left - root.left, top: source.top - root.top, width: source.width, height: source.height },
     });
   }, []);
+  useEffect(() => {
+    const handleCollectionsChanged = () => setCollections(getCollections());
+    window.addEventListener("artwork:changed", handleCollectionsChanged);
+    window.addEventListener("collections:changed", handleCollectionsChanged);
+    return () => {
+      window.removeEventListener("artwork:changed", handleCollectionsChanged);
+      window.removeEventListener("collections:changed", handleCollectionsChanged);
+    };
+  }, []);
+
   const closeCollection = useCallback(() => setCollectionId(null), []);
 
   function closeFocus() {
@@ -154,22 +166,75 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
       <div className="archive-room">
         {queueOpen ? (
           <QueueShelves tracks={queueTracks} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
+        ) : collection?.type === "record" ? (
+          <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} />
         ) : collection ? (
           <CollectionShelves collection={collection} onBack={closeCollection} onInspect={inspectTrack} />
         ) : (
           <>
             <header className="archive-heading">
               <div><span>Listening archive</span><h1>Browse the room</h1></div>
-              <p>Choose a collection to step into its shelves.</p>
+              <p>Choose a collection or record to step into its shelves.</p>
             </header>
             <div className="archive-index">
-              {collections.map((item) => <CollectionEntrance collection={item} onOpen={() => setCollectionId(item.id)} key={item.id} />)}
+              {collections.filter(c => c.type !== "record").map((item) => <CollectionEntrance collection={item} onOpen={() => setCollectionId(item.id)} key={item.id} />)}
+              
+              <button className="archive-entrance archive-create-entrance" onClick={() => {
+                const name = prompt("Enter a name for the new collection:");
+                if (name) {
+                  const id = createCollection(name);
+                  setCollectionId(id);
+                }
+              }}>
+                <span className="archive-entrance-label">New</span>
+                <strong>Create Collection</strong>
+                <small>Make a new crate</small>
+                <span className="archive-queue-mark" aria-hidden="true"><FolderPlus /></span>
+                <b>Create <span>&rarr;</span></b>
+              </button>
+              
               <button className="archive-entrance archive-queue-entrance" onClick={() => void loadQueue()}>
                 <span className="archive-entrance-label">Spotify playback</span>
                 <strong>Next Queue</strong>
                 <small>Everything currently lined up to play</small>
                 <span className="archive-queue-mark" aria-hidden="true"><ListMusic /></span>
-                <b>View queue <span>→</span></b>
+                <b>View queue <span>&rarr;</span></b>
+              </button>
+            </div>
+
+            <header className="archive-heading" style={{ marginTop: '3rem' }}>
+              <div><span>Imported Albums</span><h1>The Record Shelf</h1></div>
+            </header>
+            <div className="archive-index">
+              {collections.filter(c => c.type === "record").map((item) => <CollectionEntrance collection={item} onOpen={() => setCollectionId(item.id)} key={item.id} />)}
+              
+              <button className="archive-entrance archive-import-entrance" onClick={async () => {
+                const url = prompt("Paste a Spotify Album link:");
+                if (url) {
+                  let parsedUrl = url.trim();
+                  if (parsedUrl.includes("open.spotify.com/album/")) {
+                    const match = parsedUrl.match(/album\/([a-zA-Z0-9]+)/);
+                    if (match && match[1]) {
+                      parsedUrl = `spotify:album:${match[1]}`;
+                    }
+                  } else if (!parsedUrl.startsWith("spotify:album:")) {
+                    alert("Please provide a valid Spotify album link or URI.");
+                    return;
+                  }
+                  try {
+                    const album = await player.getAlbumTracks(parsedUrl);
+                    const id = importRecord(album);
+                    setCollectionId(id);
+                  } catch (e: any) {
+                    alert("Failed to import album: " + (e.message || e));
+                  }
+                }
+              }}>
+                <span className="archive-entrance-label">Import</span>
+                <strong>Import Record</strong>
+                <small>Paste a Spotify album link</small>
+                <span className="archive-queue-mark" aria-hidden="true"><Disc /></span>
+                <b>Import <span>&rarr;</span></b>
               </button>
             </div>
           </>
@@ -193,20 +258,10 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
               <div className="collection-focus-actions">
                 <Button onClick={(event) => { event.stopPropagation(); void playTrack(focusedRecord.track, focusedRecord.collection); }} disabled={!focusedRecord.track.uri}><Play size={16} fill="currentColor" />Play from here</Button>
                 <Button variant="outline" onClick={(event) => { event.stopPropagation(); void queueTrack(focusedRecord.track); }} disabled={!focusedRecord.track.uri}><ListPlus size={16} />Queue next</Button>
-                <Button 
-                  variant="outline" 
-                  onClick={(event) => { 
-                    event.stopPropagation(); 
-                    if (focusedRecord.track.uri && !isTrackCollected(focusedRecord.track)) {
-                      addTrackToCollection(focusedRecord.track);
-                      setNotice("Added to My Collection");
-                    }
-                  }} 
-                  disabled={!focusedRecord.track.uri || isTrackCollected(focusedRecord.track)}
-                >
-                  <Plus size={16} />
-                  {isTrackCollected(focusedRecord.track) ? "Added" : "Add to collection"}
-                </Button>
+                <AddToCollectionPicker 
+                  track={focusedRecord.track} 
+                  onAdd={() => setNotice("Added to collection")} 
+                />
               </div>
               {notice && <small className="collection-action-notice">{notice}</small>}
               {error && <small className="collection-play-error">{error}</small>}
@@ -223,6 +278,26 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
 }
 
 function CollectionEntrance({ collection, onOpen }: { collection: Collection; onOpen: () => void }) {
+  if (collection.type === "record") {
+    const coverUrl = collection.tracks[0]?.imageUrl;
+    return (
+      <button className="archive-entrance is-record-entrance" onClick={onOpen}>
+        <span className="archive-entrance-label">Imported Record</span>
+        <strong>{collection.name}</strong>
+        <small>{collection.artist || "Unknown Artist"}</small>
+        <div className="archive-entrance-record-preview" aria-hidden="true">
+          <div className="record-preview-sleeve">
+            {coverUrl ? <img src={coverUrl} alt="" loading="lazy" /> : <Disc3 />}
+          </div>
+          <div className="record-preview-disc">
+            <div className="record-preview-disc-center" style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}></div>
+          </div>
+        </div>
+        <b>Open record <span>&rarr;</span></b>
+      </button>
+    );
+  }
+
   const previews = collection.tracks.slice(-5).reverse();
   return (
     <button className="archive-entrance" onClick={onOpen}>
@@ -237,7 +312,7 @@ function CollectionEntrance({ collection, onOpen }: { collection: Collection; on
           </span>
         )) : <span className="is-empty"><Disc3 /><i /></span>}
       </span>
-      <b>Open collection <span>→</span></b>
+      <b>Open collection <span>&rarr;</span></b>
     </button>
   );
 }

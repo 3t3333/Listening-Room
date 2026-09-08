@@ -1,10 +1,11 @@
-import { Plus } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
-import { addTrackToCollection, isTrackCollected } from "../lib/collections";
+import { type ReactNode } from "react";
 import type { Track } from "../lib/player";
-import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { InteractiveSleeve } from "./InteractiveSleeve";
+import { AddToCollectionPicker } from "./AddToCollectionPicker";
+import { Button } from "./ui/button";
+import { setCustomArtwork } from "../lib/customArtwork";
+import { ImagePlus, RefreshCcw } from "lucide-react";
 
 interface Props {
   track: Track | null;
@@ -12,16 +13,27 @@ interface Props {
 }
 
 export function TrackDetailsDialog({ track, children }: Props) {
-  const [added, setAdded] = useState(() => track ? isTrackCollected(track) : false);
-
-  useEffect(() => {
-    setAdded(track ? isTrackCollected(track) : false);
-  }, [track]);
-
-  function addTrack() {
+  function handleChangeArtwork() {
     if (!track) return;
-    addTrackToCollection(track);
-    setAdded(true);
+    const original = track.originalImageUrl ?? track.imageUrl;
+    if (!original) {
+      alert("This track has no original artwork to override.");
+      return;
+    }
+    const isCustomized = track.originalImageUrl !== undefined && track.originalImageUrl !== track.imageUrl;
+    
+    if (isCustomized) {
+      const reset = confirm("This track currently has custom artwork. Do you want to reset it to the original?");
+      if (reset) {
+        setCustomArtwork(original, null);
+        return;
+      }
+    }
+
+    const url = prompt("Enter a new image URL for this album (leave blank to cancel):");
+    if (url) {
+      setCustomArtwork(original, url);
+    }
   }
 
   return (
@@ -39,9 +51,13 @@ export function TrackDetailsDialog({ track, children }: Props) {
         <div className="track-detail-copy">
           <DialogTitle>{track?.name ?? "Nothing playing"}</DialogTitle>
           <p>{track?.artist}</p>
-          <Button onClick={addTrack} disabled={!track || added}>
-            {!added && <Plus size={16} />}{added ? "Added to My Collection" : "Add to collection"}
-          </Button>
+          <div className="track-detail-actions" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+            {track && <AddToCollectionPicker track={track} />}
+            <Button variant="outline" onClick={handleChangeArtwork} disabled={!track} style={{ justifyContent: 'center' }}>
+              {track && track.originalImageUrl !== undefined && track.originalImageUrl !== track.imageUrl ? <RefreshCcw size={16} /> : <ImagePlus size={16} />} 
+              {track && track.originalImageUrl !== undefined && track.originalImageUrl !== track.imageUrl ? "Reset Artwork" : "Change Artwork"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

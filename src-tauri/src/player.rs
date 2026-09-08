@@ -190,6 +190,60 @@ impl PlayerService {
             .await
     }
 
+    pub async fn fetch_album(&self, uri: &str) -> Result<crate::models::AlbumImport, String> {
+        use librespot::metadata::{Album, Artist, Metadata};
+        use librespot::core::SpotifyUri;
+        use librespot::metadata::audio::AudioItem;
+
+        let session_lock = self.session.read().await;
+        let session = session_lock.as_ref().ok_or_else(|| "Not connected to Spotify".to_owned())?;
+
+        let spotify_uri = SpotifyUri::from_uri(uri).map_err(|_| "Invalid Spotify URI".to_owned())?;
+        let album = Album::get(session, &spotify_uri).await.map_err(|e| e.to_string())?;
+
+        let year = Some(album.date.0.year() as i32);
+        
+        let mut artist_name = "Unknown Artist".to_string();
+        let mut artist_image_url = None;
+        if let Some(artist_stub) = album.artists.first() {
+            artist_name = artist_stub.name.clone();
+            
+            let artist_uri = SpotifyUri::from_uri(&artist_stub.id.to_uri().unwrap()).unwrap();
+            if let Ok(artist) = Artist::get(session, &artist_uri).await {
+                if let Some(portrait) = artist.portraits.first() {
+                    artist_image_url = Some(format!("https://i.scdn.co/image/{}", portrait.id));
+                }
+            }
+        }
+
+        let mut tracks = Vec::new();
+        let album_cover = album.covers.first().map(|c| format!("https://i.scdn.co/image/{}", c.id));
+
+        for track_id in album.tracks() {
+            let track_uri = track_id.to_uri().unwrap();
+            let spotify_uri = SpotifyUri::from_uri(&track_uri).unwrap();
+            if let Ok(item) = AudioItem::get_file(session, spotify_uri).await {
+                let t = Track {
+                    name: item.name.clone(),
+                    artist: artist_name.clone(),
+                    image_url: item.covers.first().map(|cover| cover.url.clone()).or_else(|| album_cover.clone()),
+                    uri: Some(item.uri.clone()),
+                    duration_ms: Some(u64::from(item.duration_ms)),
+                    ..Default::default()
+                };
+                tracks.push(t);
+            }
+        }
+
+        Ok(crate::models::AlbumImport {
+            name: album.name.clone(),
+            artist: artist_name,
+            artist_image_url,
+            year,
+            tracks,
+        })
+    }
+
     pub fn shutdown(&self) {
         let _ = self.commands.send(DaemonCommand::Shutdown);
     }
@@ -271,7 +325,13 @@ async fn run_daemon(
                         state.status = PlayerStatus::Connecting;
                         state.error = None;
                     });
-                    match authenticate(session_config.device_id.clone(), session_config.client_id.clone(), &mut commands).await {
+                    match authenticate(
+                        session_config.device_id.clone(),
+                        session_config.client_id.clone(),
+                        &mut commands,
+                    )
+                    .await
+                    {
                         AuthenticationExit::Authenticated(next) => {
                             credentials = Some(next);
                             let _ = reply.send(Ok(()));

@@ -1,6 +1,11 @@
 use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use serde::Serialize;
+#[cfg(windows)]
+use std::path::Path;
 use std::sync::Arc;
+
+#[cfg(windows)]
+const AUDIO_OUTPUT_FILE: &str = "audio-output";
 
 const BAND_COUNT: usize = 12;
 const FFT_SIZE: usize = 2048;
@@ -99,11 +104,17 @@ fn frequency_bin(frequency: f32) -> usize {
 
 #[cfg(windows)]
 pub fn start(app: tauri::AppHandle) {
+    use tauri::Manager;
+
+    let Ok(app_data_dir) = app.path().app_data_dir() else {
+        log::warn!("could not resolve the application data directory for audio capture");
+        return;
+    };
     std::thread::Builder::new()
         .name("audio-spectrum".to_owned())
         .spawn(move || {
             loop {
-                if let Err(error) = capture_loop(&app) {
+                if let Err(error) = capture_loop(&app, &app_data_dir) {
                     eprintln!("WASAPI loopback capture unavailable: {error}");
                     if tauri::Emitter::emit(
                         &app,
@@ -127,13 +138,23 @@ pub fn start(app: tauri::AppHandle) {
 }
 
 #[cfg(windows)]
-fn capture_loop(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
+fn capture_loop(
+    app: &tauri::AppHandle,
+    app_data_dir: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
     use std::collections::VecDeque;
     use wasapi::{DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat, initialize_mta};
 
     initialize_mta().ok()?;
     let enumerator = DeviceEnumerator::new()?;
-    let device = enumerator.get_default_device(&Direction::Render)?;
+    let selected_output = load_audio_output(app_data_dir);
+    let device = match selected_output.as_deref() {
+        Some(output) => enumerator
+            .get_device_collection(&Direction::Render)?
+            .get_device_with_name(output)
+            .or_else(|_| enumerator.get_default_device(&Direction::Render))?,
+        None => enumerator.get_default_device(&Direction::Render)?,
+    };
     let mut audio_client = device.get_iaudioclient()?;
     let format = WaveFormat::new(32, 32, &SampleType::Float, SAMPLE_RATE as usize, 2, None);
     let (_, minimum_period) = audio_client.get_device_period()?;
@@ -150,6 +171,10 @@ fn capture_loop(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>
     audio_client.start_stream()?;
 
     loop {
+        if load_audio_output(app_data_dir) != selected_output {
+            audio_client.stop_stream()?;
+            return Ok(());
+        }
         capture_client.read_from_device_to_deque(&mut bytes)?;
         while bytes.len() >= FFT_SIZE * 8 {
             let mut mono = vec![0.0; FFT_SIZE];
@@ -186,6 +211,13 @@ fn capture_loop(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>
             return Ok(());
         }
     }
+}
+
+#[cfg(windows)]
+fn load_audio_output(app_data_dir: &Path) -> Option<String> {
+    std::fs::read_to_string(app_data_dir.join(AUDIO_OUTPUT_FILE))
+        .ok()
+        .filter(|output| !output.is_empty())
 }
 
 #[cfg(windows)]

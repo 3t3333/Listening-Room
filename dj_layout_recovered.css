@@ -1,0 +1,301 @@
+/* DJ Settings Overlay & Modal */
+.dj-settings-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 100;
+  transition: all 0.2s;
+}
+
+.dj-settings-button:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: scale(1.05);
+}
+
+.dj-settings-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s ease-out;
+}
+
+.dj-settings-modal {
+  background: #181818;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 30px;
+  width: 100%;
+  max-width: 500px;
+  position: relative;
+  color: white;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+}
+
+.dj-settings-close {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+}
+
+.dj-settings-close:hover {
+  color: white;
+}
+
+.dj-settings-modal h2 {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+}
+
+.dj-settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  cursor: pointer;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #333;
+  margin-bottom: 20px;
+}
+
+.dj-settings-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--primary);
+}
+
+.dj-settings-layouts h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #aaa;
+}
+
+.dj-layout-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+}
+
+.dj-layout-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 15px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #222;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.dj-layout-option.active {
+  border-color: var(--primary);
+  background: #2a2a2a;
+}
+
+.dj-layout-option input {
+  display: none;
+}
+
+.dj-layout-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 40px;
+}
+
+.dj-layout-preview.layout-bottom-preview {
+  flex-direction: column;
+}
+
+.layout-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #555;
+}
+.active .layout-circle { background: var(--primary); }
+
+.layout-rect {
+  width: 12px;
+  height: 30px;
+  background: #444;
+  border-radius: 2px;
+}
+
+.dj-layout-option.active .layout-rect { background: #888; }
+.layout-bottom-preview .layout-rect { width: 30px; height: 12px; }
+
+.dj-layout-option span {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.dj-layout-option small {
+  color: #888;
+  font-size: 12px;
+}
+
+/* Empty Slipmat Styles */
+.slipmat {
+  position: absolute;
+  inset: 15px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  box-shadow: inset 0 0 0 2px #111, inset 0 0 20px rgba(0,0,0,0.5);
+  background-image: radial-gradient(circle, #2a2a2a 2px, transparent 2.5px);
+  background-size: 10px 10px;
+  z-index: 1;
+}
+
+/* Dynamic Desk Layouts */
+.dj-desk {
+  transition: all 0.5s ease;
+}
+
+.dj-desk.layout-single-side {
+  grid-template-columns: 1fr auto;
+  gap: 40px;
+  justify-content: center;
+}
+
+.dj-desk.layout-single-bottom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+}
+
+.dj-long-stand.layout-single-side, .dj-long-stand.layout-single-bottom {
+  justify-content: center;
+}
+
+/* Update Dynamic Desk Layouts with explicit order */
+.dj-desk.layout-single-right {
+  display: grid !important;
+  grid-template-columns: 1fr auto !important;
+}
+.dj-desk.layout-single-right .turntable { order: 1; }
+.dj-desk.layout-single-right .dj-center-console { order: 2; }
+
+.dj-desk.layout-single-left {
+  display: grid !important;
+  grid-template-columns: auto 1fr !important;
+}
+.dj-desk.layout-single-left .turntable { order: 2; }
+.dj-desk.layout-single-left .dj-center-console { order: 1; }
+
+.dj-desk.layout-single-bottom {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  gap: 15px;
+  margin-top: -30px; /* pull everything up a touch */
+}
+.dj-desk.layout-single-bottom .turntable { order: 1; }
+.dj-desk.layout-single-bottom .dj-center-console { order: 2; width: 100%; max-width: 600px; display: flex; justify-content: center; height: 45px !important; }
+
+.dj-desk.layout-single-top {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center;
+  gap: 20px;
+}
+.dj-desk.layout-single-top .turntable { order: 2; }
+.dj-desk.layout-single-top .dj-center-console { order: 1; width: 100%; max-width: 600px; display: flex; justify-content: center; height: 45px !important; }
+
+/* Visualizer bright/saturation boost */
+.dj-center-console {
+  filter: brightness(1.3) saturate(1.5);
+}
+/* Updates for sleeves */
+.dj-stand-sleeve {
+  width: 290px !important;
+  height: 290px !important;
+  top: -260px !important; /* Move up 12px from previous + adjust for size */
+}
+
+/* Drop shadow for text */
+.dj-top-meta h1, .dj-top-meta p {
+  text-shadow: 0 4px 12px rgba(0,0,0,0.9), 0 1px 3px rgba(0,0,0,0.8);
+}
+
+/* Bottom controls layout */
+.dj-bottom-controls {
+  align-self: flex-start !important;
+  margin-left: 40px !important;
+  width: auto !important;
+}
+
+@media (max-width: 900px) {
+  .dj-bottom-controls {
+    align-self: center !important;
+    margin-left: 0 !important;
+  }
+}
+
+/* Single Only Layout (Just one Turntable) */
+.dj-desk.layout-single-only {
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+}
+/* Updates for sleeves sizing */
+.dj-stand-sleeve {
+  width: 266px !important;  /* Reduced 8% from 290px */
+  height: 266px !important;
+  top: -245px !important;   /* Adjusted to maintain position relative to floor */
+}
+
+@media (max-width: 900px), (max-height: 700px) {
+  .dj-stand-sleeve {
+    width: 239px !important; /* Reduced additional 10% */
+    height: 239px !important;
+    top: -225px !important;
+  }
+}
+
+/* Hide sleeve stand option */
+.dj-long-stand.hide-stand::before {
+  display: none !important;
+}
+
+/* Bottom controls spacing */
+.dj-bottom-controls {
+  margin-bottom: 25px !important; /* Move up when in corner */
+}
+
+@media (max-width: 900px) {
+  .dj-bottom-controls {
+    margin-bottom: 0px !important; /* Reset when centered in truncated mode */
+  }
+}
+/* Fix hide sleeve stand option */
+.dj-long-stand.hide-stand {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.dj-long-stand.hide-stand::before {
+  display: none !important;
+}
