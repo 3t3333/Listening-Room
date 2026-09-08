@@ -2219,3 +2219,21 @@ button { font: inherit; }
 .dj-long-stand.hide-stand::before {
   display: none !important;
 }
+/* Scrolling Title Styles */
+.scrolling-title { min-width: 0; margin: 0; overflow: hidden; line-height: 1.05; letter-spacing: -.035em; white-space: nowrap; }
+.scrolling-title-track { width: max-content; display: flex; align-items: baseline; gap: 48px; }
+.scrolling-title.is-overflowing { -webkit-mask-image: linear-gradient(90deg, transparent, #000 3%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 3%, #000 94%, transparent); }
+.scrolling-title.is-overflowing .scrolling-title-track { animation: title-scroll var(--title-scroll-duration) linear infinite; }
+@keyframes title-scroll { to { transform: translateX(calc(-1 * var(--title-scroll-distance))); } }
+/* Fix shrinking platter bug and remove the platter shadow */
+@keyframes spin-platter {
+  from { transform: translateZ(15px) scale(1.45) rotate(0deg); }
+  to { transform: translateZ(15px) scale(1.45) rotate(360deg); }
+}
+.platter.is-playing {
+  animation: spin-platter 3s linear infinite !important;
+}
+
+.platter-shadow {
+  display: none !important;
+}
