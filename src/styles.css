@@ -2237,3 +2237,37 @@ button { font: inherit; }
 .platter-shadow {
   display: none !important;
 }
+/* Page 1 Adjustments (Fixed) */
+
+/* Move the sleeve (jacket) up and scale it 30%, keeping the wooden stand lip in place */
+.scene .jacket-stand .jacket {
+  width: 510px !important;
+  height: 510px !important;
+  left: -45px !important;
+  top: -150px !important;
+}
+
+/* Size down record using stronger selector to avoid !important breaking animations */
+.scene .deck-wrap .platter {
+  transform: translateZ(15px) scale(1.30);
+}
+
+@keyframes spin-platter {
+  from { transform: translateZ(15px) scale(1.30) rotate(0deg); }
+  to { transform: translateZ(15px) scale(1.30) rotate(360deg); }
+}
+
+.scene .deck-wrap .platter.is-playing {
+  animation: spin-platter 3s linear infinite;
+}
+
+/* Lengthen tonearm */
+.arm-shaft {
+  height: 185px !important; /* +30px */
+}
+
+/* Shift cartridge down and left to match the longer angled arm */
+.cartridge {
+  left: -13px !important;
+  bottom: -66px !important;
+}
