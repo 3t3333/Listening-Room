@@ -69,6 +69,7 @@ enum DaemonCommand {
     Load(Vec<String>, CommandReply),
     Queue(String, CommandReply),
     ResolvedNext(u64, u64, Track),
+    Restart(CommandReply),
     Shutdown,
 }
 
@@ -244,6 +245,10 @@ impl PlayerService {
         })
     }
 
+    pub async fn restart(&self) -> Result<(), String> {
+        self.request_with(|reply| DaemonCommand::Restart(reply)).await
+    }
+
     pub fn shutdown(&self) {
         let _ = self.commands.send(DaemonCommand::Shutdown);
     }
@@ -381,7 +386,7 @@ async fn run_daemon(
         )
         .await;
         *shared_session.write().await = None;
-        let restart_immediately = result == SessionExit::AudioOutputChanged;
+        let restart_immediately = result == SessionExit::AudioOutputChanged || result == SessionExit::Restart;
 
         match result {
             SessionExit::Shutdown => return,
@@ -398,7 +403,7 @@ async fn run_daemon(
                 });
                 continue;
             }
-            SessionExit::Ended | SessionExit::AudioOutputChanged => {}
+            SessionExit::Ended | SessionExit::AudioOutputChanged | SessionExit::Restart => {}
         }
         playback_tx.send_modify(|state| {
             state.status = PlayerStatus::Reconnecting;
@@ -439,6 +444,7 @@ enum SessionExit {
     Ended,
     AuthenticationFailed(String),
     AudioOutputChanged,
+    Restart,
     Shutdown,
 }
 
@@ -536,6 +542,12 @@ async fn run_session(
     loop {
         tokio::select! {
             command = commands.recv() => match command {
+                Some(DaemonCommand::Restart(reply)) => {
+                    let _ = reply.send(Ok(()));
+                    let _ = spirc.shutdown();
+                    let _ = tokio::time::timeout(Duration::from_secs(5), &mut spirc_task).await;
+                    return SessionExit::Restart;
+                }
                 Some(DaemonCommand::Shutdown) | None => {
                     let _ = spirc.shutdown();
                     let _ = tokio::time::timeout(Duration::from_secs(5), &mut spirc_task).await;
@@ -637,7 +649,7 @@ fn handle_command(
                 playback_tx.send_modify(|state| state.next = Some(track));
             }
         }
-        DaemonCommand::Shutdown => {}
+        DaemonCommand::Shutdown | DaemonCommand::Restart(_) => {}
     }
 }
 
@@ -918,7 +930,8 @@ fn reject_command(command: DaemonCommand, message: &str) {
         | DaemonCommand::SetVolume(_, reply)
         | DaemonCommand::SetAudioOutput(_, reply)
         | DaemonCommand::Load(_, reply)
-        | DaemonCommand::Queue(_, reply) => Some(reply),
+        | DaemonCommand::Queue(_, reply)
+        | DaemonCommand::Restart(reply) => Some(reply),
         DaemonCommand::ResolvedNext(..) | DaemonCommand::Shutdown => None,
     };
     if let Some(reply) = reply {

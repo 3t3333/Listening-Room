@@ -60,6 +60,7 @@ export const player = {
   previous: () => invoke<void>("previous"),
   playCollection: (uris: string[], startUri: string) => invoke<void>("play_collection", { uris, startUri }),
   queueUri: (uri: string) => invoke<void>("queue_uri", { uri }),
+  restart: () => invoke<void>("restart_daemon"),
   setVolume: (volume: number) => invoke<void>("set_volume", { volume }),
   audioOutputs: () => invoke<AudioOutputState>("get_audio_outputs"),
   setAudioOutput: (output: string | null) => invoke<void>("set_audio_output", { output }),

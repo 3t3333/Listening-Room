@@ -1,4 +1,4 @@
-import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, FolderPlus, Disc } from "lucide-react";
+import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, FolderPlus, Disc, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
 import { CustomBackground } from "../components/CustomBackground";
 import { InteractiveSleeve } from "../components/InteractiveSleeve";
@@ -167,7 +167,8 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
         {queueOpen ? (
           <QueueShelves tracks={queueTracks} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
         ) : collection?.type === "record" ? (
-          <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} />
+          <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} onQueueTrack={onQueueTrack} />
+
         ) : collection ? (
           <CollectionShelves collection={collection} onBack={closeCollection} onInspect={inspectTrack} />
         ) : (
@@ -344,6 +345,14 @@ const CollectionShelves = memo(function CollectionShelves({ collection, onBack, 
 
 function QueueShelves({ tracks, loading, onBack, onRefresh, onInspect }: { tracks: Track[]; loading: boolean; onBack: () => void; onRefresh: () => void; onInspect: (event: MouseEvent<HTMLButtonElement>, track: Track, collection: Collection) => void }) {
   const queueCollection: Collection = { id: "spotify-queue", name: "Next Queue", tracks, updatedAt: "" };
+  
+  async function handleClearQueue() {
+    if (confirm("Are you sure you want to clear the queue? This will restart the Spotify daemon and interrupt current playback.")) {
+      await player.restart();
+      onRefresh();
+    }
+  }
+  
   return (
     <section className="archive-library archive-queue-library">
       <header className="archive-library-header">
@@ -351,7 +360,16 @@ function QueueShelves({ tracks, loading, onBack, onRefresh, onInspect }: { track
         <span>Spotify playback</span>
         <h1>Next Queue</h1>
         <p>{tracks.length} {tracks.length === 1 ? "track" : "tracks"} currently lined up</p>
-        <button className="archive-queue-refresh" onClick={onRefresh} disabled={loading}><RefreshCw />Refresh queue</button>
+        <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+          <Button variant="outline" onClick={onRefresh} disabled={loading}>
+            <RefreshCw size={16} style={{ marginRight: '6px' }} />
+            Refresh queue
+          </Button>
+          <Button variant="outline" onClick={handleClearQueue} style={{ color: '#ff5555' }} disabled={loading}>
+            <Trash2 size={16} style={{ marginRight: '6px' }} />
+            Clear Queue
+          </Button>
+        </div>
       </header>
       {loading ? (
         <div className="archive-queue-loading"><LoaderCircle /><span>Reading the Spotify queue</span></div>

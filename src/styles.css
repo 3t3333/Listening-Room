@@ -398,9 +398,9 @@ button { font: inherit; }
 .archive-library-header > span { display: block; margin-top: 27px; color: #b3a28f; font-size: 8px; font-weight: 750; letter-spacing: .18em; text-transform: uppercase; }
 .archive-library-header h1 { margin: 7px 0 0; font-size: clamp(38px, 5vw, 70px); font-weight: 560; line-height: .95; letter-spacing: -.055em; }
 .archive-library-header p { margin: 13px 0 0; color: #ffffff57; font-size: 9px; letter-spacing: .05em; }
-.archive-library-header > .archive-queue-refresh { width: fit-content; margin-top: 17px; padding: 7px 10px; border: 1px solid #ffffff1b; color: #ffffff86; background: #ffffff08; }
-.archive-library-header > .archive-queue-refresh:hover:not(:disabled) { color: white; background: #ffffff10; }
-.archive-library-header > .archive-queue-refresh:disabled { opacity: .45; cursor: default; }
+.archive-library-header .archive-queue-refresh { width: fit-content; margin-top: 17px; padding: 7px 10px; border: 1px solid #ffffff1b; color: #ffffff86; background: #ffffff08; }
+.archive-library-header .archive-queue-refresh:hover:not(:disabled) { color: white; background: #ffffff10; }
+.archive-library-header .archive-queue-refresh:disabled { opacity: .45; cursor: default; }
 .archive-queue-refresh svg { width: 12px; }
 .archive-shelves { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(54px, 7vw, 92px) clamp(24px, 4vw, 55px); padding: 0 12px 45px; }
 .archive-shelf-record { position: relative; aspect-ratio: 1; padding: 0; border: 0; color: #777; background: transparent; cursor: zoom-in; perspective: 750px; transform-style: preserve-3d; }
@@ -2244,7 +2244,7 @@ button { font: inherit; }
   width: 510px !important;
   height: 510px !important;
   left: -45px !important;
-  top: -150px !important;
+  top: -118px !important;
 }
 
 /* Size down record using stronger selector to avoid !important breaking animations */
@@ -2270,4 +2270,19 @@ button { font: inherit; }
 .cartridge {
   left: -13px !important;
   bottom: -66px !important;
+}
+/* Queue Next Styles */
+.record-tracklist .track-queue-icon {
+  opacity: 0;
+  transition: opacity 0.2s;
+  color: var(--muted);
+}
+
+.record-tracklist .track-queue-icon:hover {
+  opacity: 1 !important;
+  color: var(--foreground);
+}
+
+.record-tracklist li:hover .track-queue-icon {
+  opacity: 0.6;
 }

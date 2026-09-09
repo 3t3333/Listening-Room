@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { type Collection, deleteCollection } from "../lib/collections";
 import { InteractiveSleeve } from "./InteractiveSleeve";
-import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2 } from "lucide-react";
+import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2, ListPlus } from "lucide-react";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 
@@ -9,9 +9,10 @@ interface Props {
   record: Collection;
   onBack: () => void;
   onPlayTrack: (track: any, record: Collection) => void;
+  onQueueTrack?: (track: any) => Promise<void>;
 }
 
-export function RecordPresentation({ record, onBack, onPlayTrack }: Props) {
+export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack }: Props) {
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
 
@@ -58,6 +59,15 @@ export function RecordPresentation({ record, onBack, onPlayTrack }: Props) {
     }
   }
 
+  async function handleQueueAlbum() {
+    if (!onQueueTrack || !tracks.length) return;
+    for (const track of tracks) {
+      if (track.uri) {
+        await onQueueTrack(track);
+      }
+    }
+  }
+
   return (
     <div className={`record-presentation state-${side}`}>
       <button className="record-presentation-back" onClick={onBack}>
@@ -78,11 +88,21 @@ export function RecordPresentation({ record, onBack, onPlayTrack }: Props) {
               </div>
               <p className="record-instruction">Click the sleeve to pull out the record.</p>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
-                  <Button variant="outline" onClick={handleChangeArtwork}>
+                  <Button onClick={() => onPlayTrack(tracks[0], record)} style={{ flex: 1 }}>
+                    <PlayCircle size={18} style={{ marginRight: '8px' }} />
+                    Play Album
+                  </Button>
+                  <Button variant="outline" onClick={handleQueueAlbum} style={{ flex: 1 }}>
+                    <ListPlus size={18} style={{ marginRight: '8px' }} />
+                    Queue Album
+                  </Button>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center' }}>
+                  <Button variant="outline" onClick={handleChangeArtwork} style={{ flex: 1 }}>
                      {coverTrack?.originalImageUrl !== undefined && coverTrack?.originalImageUrl !== coverTrack?.imageUrl ? <RefreshCcw size={16} /> : <ImagePlus size={16} />}
                      {coverTrack?.originalImageUrl !== undefined && coverTrack?.originalImageUrl !== coverTrack?.imageUrl ? "Reset Artwork" : "Change Artwork"}
                   </Button>
-                  <Button variant="outline" onClick={handleDeleteRecord} style={{ color: '#ff5555' }}>
+                  <Button variant="outline" onClick={handleDeleteRecord} style={{ color: '#ff5555', flex: 1 }}>
                     <Trash2 size={16} style={{ marginRight: '6px' }} />
                     Remove
                   </Button>
@@ -99,6 +119,14 @@ export function RecordPresentation({ record, onBack, onPlayTrack }: Props) {
                     <span className="track-duration">
                       {track.durationMs ? `${Math.floor(track.durationMs / 60000)}:${String(Math.floor((track.durationMs % 60000) / 1000)).padStart(2, '0')}` : ""}
                     </span>
+                    {onQueueTrack && (
+                      <ListPlus 
+                        className="track-queue-icon" 
+                        size={18}
+                        onClick={(e) => { e.stopPropagation(); onQueueTrack(track); }} 
+                        style={{ marginRight: '8px' }}
+                      />
+                    )}
                     <PlayCircle className="track-play-icon" />
                   </li>
                 ))}

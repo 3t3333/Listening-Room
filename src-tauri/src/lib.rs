@@ -80,6 +80,11 @@ async fn set_audio_output(
     service.set_audio_output(output).await
 }
 
+#[tauri::command]
+async fn restart_daemon(service: State<'_, PlayerService>) -> Result<(), String> {
+    service.restart().await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
@@ -116,6 +121,7 @@ pub fn run() {
             previous,
             play_collection,
             queue_uri,
+            restart_daemon,
             set_volume,
             get_audio_outputs,
             set_audio_output
