@@ -631,7 +631,7 @@ fn handle_command(
             let options = LoadRequestOptions {
                 start_playing: true,
                 context_options: Some(LoadContextOptions::Options(Options {
-                    repeat: true,
+                    repeat: false,
                     ..Default::default()
                 })),
                 ..Default::default()
@@ -692,6 +692,9 @@ fn reduce_player_event(
             state.is_playing = false;
             state.can_play = active && state.current.is_some();
             state.can_pause = false;
+            if matches!(event, PlayerEvent::Stopped { .. }) && queue_tx.borrow().upcoming.is_empty() {
+                state.current = None;
+            }
         }
         PlayerEvent::VolumeChanged { volume } => {
             state.volume_percent = Some(librespot_to_percent(volume));

@@ -8,6 +8,7 @@ import { Button } from "./components/ui/button";
 import { useArtworkPalette } from "./hooks/useArtworkColor";
 import { useCustomBackground } from "./hooks/useCustomBackground";
 import { useTheme } from "./hooks/useTheme";
+import { useDjSettings } from "./hooks/useDjSettings";
 import { defaultCollectionId, getCollections, recordRecentlyPlayed } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
 import { mapTrackArtwork } from "./lib/customArtwork";
@@ -43,6 +44,8 @@ export function App() {
   const [pageZoom, setPageZoom] = useState(readPageZoom);
   const [zoomNotice, setZoomNotice] = useState<number | null>(null);
   const { theme, setTheme } = useTheme();
+  const [djSettings] = useDjSettings();
+  const [albumQueue, setAlbumQueue] = useState<Track[][]>([]);
   const customBackground = useCustomBackground();
   const backgroundPalette = useArtworkPalette(customBackground.imageUrl);
   const refreshSequence = useRef(0);
@@ -53,6 +56,34 @@ export function App() {
   const zoomNoticeTimer = useRef(0);
   const recentTrack = useRef<string | null>(null);
   const backendError = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      playback.active && 
+      !playback.isPlaying && 
+      !playback.current && 
+      albumQueue.length > 0
+    ) {
+      const nextAlbum = albumQueue[0];
+      setAlbumQueue((q) => q.slice(1));
+      playCollectedTrack(nextAlbum[0], nextAlbum).catch(console.error);
+    }
+  }, [playback.active, playback.isPlaying, playback.current, albumQueue]);
+
+  function handleQueueAlbum(tracks: Track[]) {
+    if (djSettings.queueAlbumsSequentially) {
+      setAlbumQueue((q) => [...q, tracks]);
+    } else {
+      // Fallback to queueing all tracks
+      (async () => {
+        for (const track of tracks) {
+          if (track.uri) {
+            await player.queueUri(track.uri);
+          }
+        }
+      })();
+    }
+  }
 
   function applyPlayback(rawNext: PlaybackState) {
     const next = { ...rawNext, current: mapTrackArtwork(rawNext.current), next: mapTrackArtwork(rawNext.next) };
@@ -228,6 +259,7 @@ export function App() {
 
   const themeProps: ThemeProps = {
     playback: displayPlayback,
+    albumQueue,
     background: {
       imageUrl: customBackground.imageUrl,
       opacity: customBackground.opacity,
@@ -273,7 +305,7 @@ export function App() {
       <div className="theme-transition" key={theme}>
         {theme === "warm" && <WarmRoomTheme {...themeProps} />}
         {theme === "midnight" && <MidnightMixTheme {...themeProps} />}
-        {theme === "archive" && <ArchiveRoomTheme {...themeProps} onPlayTrack={playCollectedTrack} onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} />}
+        {theme === "archive" && <ArchiveRoomTheme {...themeProps} onPlayTrack={playCollectedTrack} onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} onQueueAlbum={handleQueueAlbum} />}
         {theme === "dj-setup" && <DjSetupTheme {...themeProps} />}
         {theme === "visualizer-stand" && <VisualizerStandTheme {...themeProps} />}
       </div>

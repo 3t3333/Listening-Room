@@ -10,9 +10,10 @@ interface Props {
   onBack: () => void;
   onPlayTrack: (track: any, record: Collection) => void;
   onQueueTrack?: (track: any) => Promise<void>;
+  onQueueAlbum?: (tracks: any[]) => void;
 }
 
-export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack }: Props) {
+export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
 
@@ -60,7 +61,12 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack }
   }
 
   async function handleQueueAlbum() {
-    if (!onQueueTrack || !tracks.length) return;
+    if (!tracks.length) return;
+    if (onQueueAlbum) {
+      onQueueAlbum(tracks);
+      return;
+    }
+    if (!onQueueTrack) return;
     for (const track of tracks) {
       if (track.uri) {
         await onQueueTrack(track);

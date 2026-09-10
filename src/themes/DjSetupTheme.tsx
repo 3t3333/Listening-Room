@@ -29,10 +29,10 @@ export function DjSetupTheme({ playback, background, onToggle, onPrevious, onNex
         return { left: currentTrack, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
       }
       if (activeSide === "left" && prev.left?.uri === currentTrack?.uri) {
-        return { ...prev, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
+        return { ...prev, left: currentTrack, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
       }
       if (activeSide === "right" && prev.right?.uri === currentTrack?.uri) {
-        return { ...prev, left: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
+        return { ...prev, left: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack, right: currentTrack };
       }
       if (activeSide === "left" && prev.right?.uri === currentTrack?.uri) {
         setActiveSide("right");
@@ -42,6 +42,22 @@ export function DjSetupTheme({ playback, background, onToggle, onPrevious, onNex
         setActiveSide("left");
         return { left: currentTrack, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
       }
+      
+      if (activeSide === "left" && prev.left?.imageUrl && prev.left.imageUrl === currentTrack?.imageUrl) {
+        return { left: currentTrack, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
+      }
+      if (activeSide === "right" && prev.right?.imageUrl && prev.right.imageUrl === currentTrack?.imageUrl) {
+        return { left: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack, right: currentTrack };
+      }
+      if (activeSide === "left" && prev.right?.imageUrl && prev.right.imageUrl === currentTrack?.imageUrl) {
+        setActiveSide("right");
+        return { left: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack, right: currentTrack };
+      }
+      if (activeSide === "right" && prev.left?.imageUrl && prev.left.imageUrl === currentTrack?.imageUrl) {
+        setActiveSide("left");
+        return { left: currentTrack, right: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack };
+      }
+
       if (activeSide === "left") {
         setActiveSide("right");
         return { left: settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack, right: currentTrack };

@@ -145,6 +145,19 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         {tab === "playback" && (
           <section className="settings-panel">
             <header><span>Features</span><h2>Album Playback</h2><p>Configure the layout of the DJ desk when listening to a single album.</p></header>
+
+            <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
+              <input 
+                type="checkbox" 
+                checked={djSettings.queueAlbumsSequentially} 
+                onChange={e => setDjSettings({ ...djSettings, queueAlbumsSequentially: e.target.checked })}
+                style={{width: '20px', height: '20px', accentColor: 'var(--primary)'}}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Queue albums sequentially</span>
+                <span style={{ fontSize: '12px', color: '#888' }}>Play queued albums after the current album ends instead of immediately inserting their tracks.</span>
+              </div>
+            </label>
             
             <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
               <input 

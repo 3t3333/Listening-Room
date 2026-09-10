@@ -11,6 +11,7 @@ export interface BackgroundPresentation {
 export interface ThemeProps {
   playback: PlaybackState;
   background: BackgroundPresentation;
+  albumQueue: import("../lib/player").Track[][];
   onToggle: () => void;
   onPrevious: () => void;
   onNext: () => void;

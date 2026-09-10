@@ -13,6 +13,7 @@ import { RecordPresentation } from "../components/RecordPresentation";
 interface Props extends ThemeProps {
   onPlayTrack: (track: Track, collection?: Track[]) => Promise<void>;
   onQueueTrack: (track: Track) => Promise<void>;
+  onQueueAlbum?: (tracks: Track[]) => void;
 }
 
 interface FocusedRecord {
@@ -21,7 +22,7 @@ interface FocusedRecord {
   source: { left: number; top: number; width: number; height: number };
 }
 
-export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, onNext, onPlayTrack, onQueueTrack }: Props) {
+export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, onPrevious, onNext, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
   const [collections, setCollections] = useState<Collection[]>(getCollections);
   const [collectionId, setCollectionId] = useState<string | null>(null);
   const [queueOpen, setQueueOpen] = useState(false);
@@ -165,9 +166,9 @@ export function ArchiveRoomTheme({ playback, background, onToggle, onPrevious, o
       <div className="archive-ambient" />
       <div className="archive-room">
         {queueOpen ? (
-          <QueueShelves tracks={queueTracks} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
+          <QueueShelves tracks={[...queueTracks, ...albumQueue.flat()]} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
         ) : collection?.type === "record" ? (
-          <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} onQueueTrack={onQueueTrack} />
+          <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} onQueueTrack={onQueueTrack} onQueueAlbum={onQueueAlbum} />
 
         ) : collection ? (
           <CollectionShelves collection={collection} onBack={closeCollection} onInspect={inspectTrack} />

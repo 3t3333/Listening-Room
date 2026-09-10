@@ -5,6 +5,7 @@ export interface DjSettings {
   singleAlbumLayout: "dual" | "single-right" | "single-bottom" | "single-left" | "single-top" | "single-only";
   isDark: boolean;
   showSleeveStand: boolean;
+  queueAlbumsSequentially: boolean;
 }
 
 const defaultSettings: DjSettings = {
@@ -12,6 +13,7 @@ const defaultSettings: DjSettings = {
   singleAlbumLayout: "dual",
   isDark: false,
   showSleeveStand: true,
+  queueAlbumsSequentially: true,
 };
 
 export function useDjSettings() {
