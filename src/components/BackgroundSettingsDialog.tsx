@@ -1,4 +1,4 @@
-import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3 } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
 import { player, type AudioOutputState } from "../lib/player";
@@ -8,13 +8,65 @@ import { useDjSettings } from "../hooks/useDjSettings";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
+  const importInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"background" | "audio" | "playback">("background");
+  const [tab, setTab] = useState<"background" | "audio" | "playback" | "data">("background");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [audio, setAudio] = useState<AudioOutputState | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [djSettings, setDjSettings] = useDjSettings();
+
+  function handleExportData() {
+    try {
+      const keys = [
+        "listening-room-collections",
+        "listening-room-artwork-cache",
+        "listening-room-theme",
+        "dj-settings",
+        "custom-background"
+      ];
+      
+      const data: Record<string, string | null> = {};
+      for (const key of keys) {
+        data[key] = localStorage.getItem(key);
+      }
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "listening-room-backup.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to export backup: " + err);
+    }
+  }
+
+  function handleImportData(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target?.result as string);
+        for (const [key, value] of Object.entries(data)) {
+          if (typeof value === "string") {
+            localStorage.setItem(key, value);
+          } else if (value === null) {
+            localStorage.removeItem(key);
+          }
+        }
+        alert("Data imported successfully! The application will now reload to apply the restored settings.");
+        window.location.reload();
+      } catch (err) {
+        alert("Failed to import backup file. It might be corrupted or in an invalid format.");
+      }
+    };
+    reader.readAsText(file);
+  }
 
   async function loadAudioOutputs() {
     setAudioLoading(true);
@@ -85,6 +137,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
             <button type="button" className={`settings-tab ${tab === "background" ? "active" : ""}`} onClick={() => setTab("background")}><SlidersHorizontal size={15} />Background</button>
             <button type="button" className={`settings-tab ${tab === "audio" ? "active" : ""}`} onClick={() => setTab("audio")}><Speaker size={15} />Audio output</button>
             <button type="button" className={`settings-tab ${tab === "playback" ? "active" : ""}`} onClick={() => setTab("playback")}><Disc3 size={15} />DJ Setup</button>
+            <button type="button" className={`settings-tab ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")}><Database size={15} />Data & Backup</button>
           </div>
         </aside>
         
@@ -156,6 +209,19 @@ export function BackgroundSettingsDialog({ background, children }: { background:
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 <span>Queue albums sequentially</span>
                 <span style={{ fontSize: '12px', color: '#888' }}>Play queued albums after the current album ends instead of immediately inserting their tracks.</span>
+              </div>
+            </label>
+
+            <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
+              <input 
+                type="checkbox" 
+                checked={djSettings.loopAlbumQueue} 
+                onChange={e => setDjSettings({ ...djSettings, loopAlbumQueue: e.target.checked })}
+                style={{width: '20px', height: '20px', accentColor: 'var(--primary)'}}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Loop Album Queue</span>
+                <span style={{ fontSize: '12px', color: '#888' }}>When an album finishes playing from the queue, move it back to the end instead of stopping.</span>
               </div>
             </label>
             
@@ -277,9 +343,34 @@ export function BackgroundSettingsDialog({ background, children }: { background:
                 </div>
               </div>
             )}
-          </section>
-        )}
-      </DialogContent>
+            </section>
+          )}
+
+          {tab === "data" && (
+            <section className="settings-panel">
+              <header>
+                <span>Backup</span>
+                <h2>Data Management</h2>
+                <p>Export your collections, custom artwork, and settings to a backup file, or import them into a new environment.</p>
+              </header>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
+                <Button onClick={handleExportData} style={{ flex: 1 }}>
+                  <Download size={16} style={{ marginRight: '8px' }} />
+                  Export Backup
+                </Button>
+                <Button variant="outline" onClick={() => importInput.current?.click()} style={{ flex: 1 }}>
+                  <Upload size={16} style={{ marginRight: '8px' }} />
+                  Import Backup
+                </Button>
+                <input ref={importInput} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportData} />
+              </div>
+              <p style={{ marginTop: '20px', color: '#888', fontSize: '13px', lineHeight: '1.5' }}>
+                Note: This backup includes all your saved albums, custom artworks, and theme preferences. It does not include your Spotify credentials. When you import this file, the app will instantly reload to apply your settings.
+              </p>
+            </section>
+          )}
+        </DialogContent>
     </Dialog>
   );
 }

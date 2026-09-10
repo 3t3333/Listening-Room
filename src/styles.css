@@ -936,11 +936,11 @@ button { font: inherit; }
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  height: 100%;
-  padding: 30px 0 20px;
+  min-height: 100%;
+  padding: 80px 0 20px; /* Increased top padding to accommodate top bar */
   background: transparent;
   perspective: 1500px;
-  overflow: hidden;
+  flex-shrink: 0;
 }
 
 .dj-top-meta {
@@ -1543,8 +1543,8 @@ button { font: inherit; }
 
 .record-stage {
   position: relative;
-  width: 500px;
-  height: 500px;
+  width: 375px;
+  height: 375px;
 }
 
 .record-sleeve-container {
@@ -1561,9 +1561,15 @@ button { font: inherit; }
   transform: scale(1.02);
 }
 
+.record-sleeve-oversize {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+}
+
 .record-sleeve-oversize .track-artwork-card {
-  width: 500px;
-  height: 500px;
+  width: 100%;
+  height: 100%;
 }
 
 .record-vinyl-container {
@@ -1589,7 +1595,7 @@ button { font: inherit; }
 
 .record-vinyl-disc {
   position: absolute;
-  inset: 0;
+  inset: 2.5%;
   border-radius: 50%;
   background: #111;
   box-shadow: inset 0 0 0 10px #0a0a0a, 0 10px 30px rgba(0,0,0,0.5);
@@ -2282,4 +2288,257 @@ button { font: inherit; }
 
 .record-tracklist li:hover .track-queue-icon {
   opacity: 0.6;
+}
+/* Spine Shelf (Page 5) */
+.spine-shelf-container {
+  display: flex;
+  justify-content: center;
+  padding: 100px 40px;
+  min-height: 50vh;
+}
+
+.spine-shelf-bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 16px;
+  width: max-content;
+  min-width: 800px;
+  max-width: 90vw;
+  flex-wrap: wrap;
+  background: linear-gradient(180deg, #1f1f1f, #0d0d0d);
+  border-radius: 2px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.1);
+  position: relative;
+  padding: 0 40px;
+}
+
+.spine-shelf-bar::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 2%;
+  width: 96%;
+  height: 10px;
+  background: rgba(0,0,0,0.6);
+  filter: blur(8px);
+  z-index: -1;
+}
+
+.spine-record-wrapper {
+  position: relative;
+  width: 10px; /* Slightly wider */
+  height: 230px;
+  cursor: pointer;
+  perspective: 1200px;
+  z-index: 5;
+}
+
+.spine-record-card {
+  position: absolute;
+  bottom: 16px;
+  left: 2px;
+  width: 230px;
+  height: 230px;
+  transform-origin: bottom left;
+  transform: rotateY(82deg) translateZ(0); /* 4 degrees less */
+  transform-style: preserve-3d;
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none; /* Fix hover paradox! */
+}
+
+.spine-record-wrapper:hover {
+  z-index: 10;
+}
+
+.spine-record-wrapper:hover .spine-record-card {
+  transform: rotateY(70deg) translateY(-10px) translateX(-20px); /* Move outwards slightly towards screen */
+}
+
+/* Thinner depth for spines (4px) */
+.spine-record-depth {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, #403f3c, #171716 58%, #050505);
+  transform: translateZ(-2px);
+  backface-visibility: hidden;
+}
+
+.spine-record-card img, .spine-no-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: translateZ(2px);
+  backface-visibility: hidden;
+}
+
+.spine-no-art {
+  background: #333;
+  display: grid;
+  place-items: center;
+  color: #777;
+}
+
+.spine-record-plastic, .spine-record-shine {
+  position: absolute;
+  inset: 0;
+  transform: translateZ(2.5px);
+  pointer-events: none;
+}
+
+.spine-record-plastic::before {
+  content: "";
+  position: absolute;
+  inset: 4px 1px auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #fff8 12%, #fff2 65%, transparent);
+}
+
+/* Tooltip */
+.spine-record-tooltip {
+  position: absolute;
+  bottom: 230px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px) scale(0.9);
+  background: #111;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: 300px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  z-index: 20;
+}
+
+.spine-record-wrapper:hover .spine-record-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.spine-tooltip-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.spine-record-tooltip-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.spine-record-tooltip-text strong {
+  font-size: 14px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.spine-record-tooltip-text small {
+  font-size: 12px;
+  color: #888;
+}
+
+/* Edges for 3D */
+.spine-record-edge {
+  position: absolute;
+  background: #111;
+}
+.spine-edge-top { top: 0; left: 0; right: 0; height: 4px; transform: rotateX(-90deg); transform-origin: top; }
+.spine-edge-bottom { bottom: 0; left: 0; right: 0; height: 4px; transform: rotateX(90deg); transform-origin: bottom; }
+.spine-edge-left { top: 0; bottom: 0; left: 0; width: 4px; transform: rotateY(-90deg); transform-origin: left; }
+.spine-edge-right { top: 0; bottom: 0; right: 0; width: 4px; transform: rotateY(90deg); transform-origin: right; }
+
+/* Inline Record Viewer */
+.inline-record-viewer {
+  display: flex;
+  background: transparent;
+  color: var(--foreground);
+  animation: fade-in 0.3s ease-out;
+  margin-top: 40px;
+  width: 100%;
+}
+
+.inline-record-content {
+  display: flex;
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+
+.inline-record-left {
+  flex: 1;
+  padding: 40px;
+  display: flex;
+  flex-direction: column;
+}
+
+.inline-record-right {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 2000px;
+}
+
+.inline-close-btn {
+  position: absolute;
+  top: 0;
+  right: 40px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  z-index: 10;
+}
+.inline-close-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.record-vinyl-container.inline-vinyl.is-out {
+  animation: inline-pull-out 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+.record-vinyl-container.inline-vinyl.is-in {
+  animation: inline-pull-in 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes inline-pull-out {
+  0% { left: 0; z-index: 1; transform: scale(1); }
+  100% { left: 60%; z-index: 1; transform: scale(1); } /* Slid out to the left, behind sleeve */
+}
+
+@keyframes inline-pull-in {
+  0% { left: 60%; z-index: 1; transform: scale(1); }
+  100% { left: 0; z-index: 1; transform: scale(1); }
+}
+/* Flying Record Animation */
+@keyframes fly-to-turntable {
+  0% {
+    transform: translate(var(--source-x), var(--source-y)) scale(1);
+  }
+  30% {
+    transform: translate(var(--source-x), calc(var(--source-y) - 200px)) scale(1.1);
+  }
+  100% {
+    transform: translate(var(--target-x), var(--target-y)) scale(var(--target-scale));
+  }
+}
+
+@keyframes fly-spin {
+  0% { transform: rotateX(0deg) rotateZ(0deg); }
+  50% { transform: rotateX(30deg) rotateZ(180deg); }
+  100% { transform: rotateX(60deg) rotateZ(360deg); }
 }

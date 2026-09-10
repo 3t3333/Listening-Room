@@ -17,7 +17,7 @@ export function DjTurntable({
   onToggleDark?: () => void;
 }) {
   return (
-    <div className={`turntable turntable-${align} ${isDark ? "is-dark" : ""}`} onClick={onToggleDark} style={{ cursor: 'pointer' }}>
+    <div id={`turntable-platter-${align}`} className={`turntable turntable-${align}} ${isDark ? "is-dark" : ""}`} onClick={onToggleDark} style={{ cursor: 'pointer' }}>
       <div className="turntable-chassis" onClick={(e) => e.stopPropagation()}>
         {/* Platter & Vinyl */}
         <div className="turntable-platter-area">

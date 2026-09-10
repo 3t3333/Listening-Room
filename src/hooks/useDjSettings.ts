@@ -6,6 +6,7 @@ export interface DjSettings {
   isDark: boolean;
   showSleeveStand: boolean;
   queueAlbumsSequentially: boolean;
+  loopAlbumQueue: boolean;
 }
 
 const defaultSettings: DjSettings = {
@@ -14,6 +15,7 @@ const defaultSettings: DjSettings = {
   isDark: false,
   showSleeveStand: true,
   queueAlbumsSequentially: true,
+  loopAlbumQueue: false,
 };
 
 export function useDjSettings() {

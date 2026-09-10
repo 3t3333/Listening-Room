@@ -15,4 +15,7 @@ export interface ThemeProps {
   onToggle: () => void;
   onPrevious: () => void;
   onNext: () => void;
+  onPlayTrack?: (track: any, tracks: any[]) => void;
+  onQueueTrack?: (track: any) => Promise<void>;
+  onQueueAlbum?: (tracks: any[]) => void;
 }

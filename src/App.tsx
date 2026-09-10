@@ -65,10 +65,13 @@ export function App() {
       albumQueue.length > 0
     ) {
       const nextAlbum = albumQueue[0];
-      setAlbumQueue((q) => q.slice(1));
+      setAlbumQueue((q) => {
+        const rest = q.slice(1);
+        return djSettings.loopAlbumQueue ? [...rest, nextAlbum] : rest;
+      });
       playCollectedTrack(nextAlbum[0], nextAlbum).catch(console.error);
     }
-  }, [playback.active, playback.isPlaying, playback.current, albumQueue]);
+  }, [playback.active, playback.isPlaying, playback.current, albumQueue, djSettings.loopAlbumQueue]);
 
   function handleQueueAlbum(tracks: Track[]) {
     if (djSettings.queueAlbumsSequentially) {
@@ -269,6 +272,9 @@ export function App() {
     onToggle: () => void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying),
     onPrevious: () => void runPlaybackAction(player.previous),
     onNext: () => void runPlaybackAction(player.next),
+    onPlayTrack: playCollectedTrack,
+    onQueueTrack: (track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("No URI")),
+    onQueueAlbum: handleQueueAlbum
   };
   const shellStyle = pageZoom === 1 ? undefined : {
     width: `${100 / pageZoom}%`,

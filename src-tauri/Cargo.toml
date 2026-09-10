@@ -1,6 +1,6 @@
 [package]
 name = "listening-room"
-version = "0.4.2"
+version = "0.4.6"
 description = "A spatial Spotify listening room"
 edition = "2024"
 

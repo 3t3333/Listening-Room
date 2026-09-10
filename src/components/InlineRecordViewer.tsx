@@ -1,25 +1,32 @@
-import { useState, useRef, useEffect } from "react";
-import { type Collection, deleteCollection } from "../lib/collections";
+import { useState, useEffect, useRef, type CSSProperties } from "react";
+import { ArrowLeft, PlayCircle, ListPlus, Trash2, ImagePlus, RefreshCcw } from "lucide-react";
+import type { Collection } from "../lib/collections";
+import { deleteCollection } from "../lib/collections";
 import { InteractiveSleeve } from "./InteractiveSleeve";
-import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2, ListPlus } from "lucide-react";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 
 interface Props {
   record: Collection;
-  onBack: () => void;
+  sourceRect: DOMRect | null;
+  onClose: () => void;
   onPlayTrack: (track: any, record: Collection) => void;
   onQueueTrack?: (track: any) => Promise<void>;
   onQueueAlbum?: (tracks: any[]) => void;
 }
 
-export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
+export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (side !== "info") setHasOpened(true);
   }, [side]);
+  
+  useEffect(() => {
+    containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [record.id]);
   
   const tracks = record.tracks || [];
   const sideACount = Math.ceil(tracks.length / 2);
@@ -56,7 +63,7 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
   function handleDeleteRecord() {
     if (confirm("Are you sure you want to remove this album from your library?")) {
       deleteCollection(record.id);
-      onBack();
+      onClose();
     }
   }
 
@@ -75,13 +82,9 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
   }
 
   return (
-    <div className={`record-presentation state-${side}`}>
-      <button className="record-presentation-back" onClick={onBack}>
-        <ArrowLeft /> Back to Room
-      </button>
-
-      <div className="record-presentation-content">
-        <div className="record-presentation-left">
+    <div ref={containerRef} className={`inline-record-viewer state-${side}`}>
+      <div className="inline-record-content">
+        <div className="inline-record-left">
           <div className="record-info-header fade-in">
             {record.artistImageUrl && <img src={record.artistImageUrl} className="record-artist-pic" alt={record.artist} />}
             <h1 className="record-title">{record.name}</h1>
@@ -145,14 +148,14 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
           )}
         </div>
 
-        <div className="record-presentation-right">
+        <div className="inline-record-right">
           <div className="record-stage">
              <div className="record-sleeve-container" onClick={() => setSide(side === "info" ? "side-a" : "info")}>
                <InteractiveSleeve track={coverTrack} className="record-sleeve-oversize" />
              </div>
              
              <div 
-               className={`record-vinyl-container ${side !== "info" ? "is-out" : (hasOpened ? "is-in" : "")}`}
+               className={`record-vinyl-container inline-vinyl ${side !== "info" ? "is-out" : (hasOpened ? "is-in" : "")}`}
                onClick={() => {
                  if (side !== "info") {
                    setSide(side === "side-a" ? "side-b" : "side-a");
@@ -184,6 +187,10 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
              </div>
           </div>
         </div>
+        
+        <button className="inline-close-btn" onClick={onClose}>
+           Close Viewer
+        </button>
       </div>
     </div>
   );
