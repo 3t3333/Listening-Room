@@ -929,6 +929,25 @@ button { font: inherit; }
   70% { box-shadow: 0 0 0 10px rgba(29, 185, 84, 0); }
   100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
 }
+/* DJ Page 5 — scrollable wrapper */
+.dj-page-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+.dj-page-container::-webkit-scrollbar {
+  width: 5px;
+}
+.dj-page-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+.dj-page-container::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.12);
+  border-radius: 3px;
+}
+.dj-page-container::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.22);
+}
+
 /* DJ Setup Theme */
 .dj-setup-container {
   display: flex;
@@ -1545,12 +1564,13 @@ button { font: inherit; }
   position: relative;
   width: 375px;
   height: 375px;
+  overflow: visible;
 }
 
 .record-sleeve-container {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 2; /* Sleeve sits above the hidden disc */
   cursor: pointer;
   transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
   box-shadow: 0 20px 50px rgba(0,0,0,0.5);
@@ -1577,15 +1597,28 @@ button { font: inherit; }
   inset: 5px;
   z-index: 1;
   cursor: pointer;
-  transition: transform 0.8s cubic-bezier(0.3, 1, 0.3, 1), left 0.8s cubic-bezier(0.3, 1, 0.3, 1);
   transform-style: preserve-3d;
-  left: 0;
+  left: 5px;
+  top: 5px;
+  transition: none;
 }
 
-/* Slide out animation */
 .record-vinyl-container.is-out {
-  left: -55%;
-  z-index: 3;
+  animation: pull-out-front 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.record-vinyl-container.is-in {
+  animation: pull-in-back 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes pull-out-front {
+  0%   { left: 5px; top: 5px; z-index: 1; transform: scale(1); }
+  100% { left: -5px; top: 10px; z-index: 3; transform: scale(1); } /* 5px left, 10px down from center; pops in front */
+}
+
+@keyframes pull-in-back {
+  0%   { left: -5px; top: 10px; z-index: 3; transform: scale(1); }
+  100% { left: 5px;  top: 5px;  z-index: 1; transform: scale(1); }
 }
 
 /* Flip animation */
@@ -1672,8 +1705,8 @@ button { font: inherit; }
 /* Fix Record Aspect Ratio & Size */
 .record-vinyl-container {
   aspect-ratio: 1 / 1;
-  width: 490px;
-  height: 490px;
+  width: 95%;
+  height: 95%;
   margin: auto;
   position: absolute;
   top: 5px;
@@ -1867,37 +1900,7 @@ button { font: inherit; }
   flex-direction: row-reverse;
 }
 
-/* Update animations for the sliding record */
-.record-vinyl-container {
-  /* Remove old transition/left logic, use animations */
-  transition: none;
-  /* Default state: hidden behind */
-  left: 0;
-  z-index: 1;
-  transform: scale(1);
-}
-
-.record-vinyl-container.is-out {
-  animation: pull-out-front 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-.record-vinyl-container.is-in {
-  animation: pull-in-back 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes pull-out-front {
-  0% { left: 0; z-index: 1; transform: scale(1); }
-  45% { left: -60%; z-index: 1; transform: scale(1); }
-  50% { left: -60%; z-index: 3; transform: scale(0.85); }
-  100% { left: 0; z-index: 3; transform: scale(0.85); }
-}
-
-@keyframes pull-in-back {
-  0% { left: 0; z-index: 3; transform: scale(0.85); }
-  45% { left: -60%; z-index: 3; transform: scale(0.85); }
-  50% { left: -60%; z-index: 1; transform: scale(1); }
-  100% { left: 0; z-index: 1; transform: scale(1); }
-}
+/* Removed duplicated and buggy record-vinyl-container animation rules */
 
 /* Fix flipping by moving the rotation to the disc itself */
 .record-vinyl-disc {
@@ -2352,7 +2355,7 @@ button { font: inherit; }
 }
 
 .spine-record-wrapper:hover .spine-record-card {
-  transform: rotateY(70deg) translateY(-10px) translateX(-20px); /* Move outwards slightly towards screen */
+  transform: rotateY(82deg) translateX(-40px); /* Slides the record outwards toward the user along its local angled axis */
 }
 
 /* Thinner depth for spines (4px) */
@@ -2508,22 +2511,7 @@ button { font: inherit; }
   background: rgba(255, 255, 255, 0.2);
 }
 
-.record-vinyl-container.inline-vinyl.is-out {
-  animation: inline-pull-out 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-.record-vinyl-container.inline-vinyl.is-in {
-  animation: inline-pull-in 1s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes inline-pull-out {
-  0% { left: 0; z-index: 1; transform: scale(1); }
-  100% { left: 60%; z-index: 1; transform: scale(1); } /* Slid out to the left, behind sleeve */
-}
-
-@keyframes inline-pull-in {
-  0% { left: 60%; z-index: 1; transform: scale(1); }
-  100% { left: 0; z-index: 1; transform: scale(1); }
-}
+/* Redundant inline-vinyl animations removed - handled by base record-vinyl-container */
 /* Flying Record Animation */
 @keyframes fly-to-turntable {
   0% {

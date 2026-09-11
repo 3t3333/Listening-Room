@@ -24,12 +24,18 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         "listening-room-artwork-cache",
         "listening-room-theme",
         "dj-settings",
-        "custom-background"
+        "custom-background",
+        "custom-artwork-mappings"   // album artwork overrides (custom image URLs)
       ];
       
-      const data: Record<string, string | null> = {};
+      const data: Record<string, any> = {};
       for (const key of keys) {
-        data[key] = localStorage.getItem(key);
+        const value = localStorage.getItem(key);
+        try {
+          data[key] = value ? JSON.parse(value) : null;
+        } catch {
+          data[key] = value;
+        }
       }
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -53,10 +59,10 @@ export function BackgroundSettingsDialog({ background, children }: { background:
       try {
         const data = JSON.parse(e.target?.result as string);
         for (const [key, value] of Object.entries(data)) {
-          if (typeof value === "string") {
-            localStorage.setItem(key, value);
-          } else if (value === null) {
+          if (value === null) {
             localStorage.removeItem(key);
+          } else {
+            localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
           }
         }
         alert("Data imported successfully! The application will now reload to apply the restored settings.");
