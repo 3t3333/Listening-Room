@@ -2351,11 +2351,11 @@ button { font: inherit; }
 }
 
 .spine-record-wrapper:hover {
-  z-index: 10;
+  /* Removed z-index: 10 so it doesn't unnaturally pop over other items */
 }
 
 .spine-record-wrapper:hover .spine-record-card {
-  transform: rotateY(82deg) translateX(-40px); /* Slides the record outwards toward the user along its local angled axis */
+  transform: rotateY(82deg) translateX(-65px); /* Slides the record further outwards toward the user */
 }
 
 /* Thinner depth for spines (4px) */
