@@ -12,6 +12,7 @@ import { useDjSettings } from "./hooks/useDjSettings";
 import { defaultCollectionId, getCollections, recordRecentlyPlayed } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
 import { mapTrackArtwork } from "./lib/customArtwork";
+import { mp3Player, type Mp3PlaybackState } from "./lib/mp3Player";
 import { MidnightMixTheme } from "./themes/MidnightMixTheme";
 import { DjSetupTheme } from "./themes/DjSetupTheme";
 import { ArchiveRoomTheme } from "./themes/ArchiveRoomTheme";
@@ -48,6 +49,7 @@ export function App() {
   const [albumQueue, setAlbumQueue] = useState<Track[][]>([]);
   const customBackground = useCustomBackground();
   const backgroundPalette = useArtworkPalette(customBackground.imageUrl);
+  const [mp3State, setMp3State] = useState<Mp3PlaybackState>(() => mp3Player.getState());
   const refreshSequence = useRef(0);
   const appliedRefresh = useRef(0);
   const selectionSequence = useRef(0);
@@ -56,6 +58,30 @@ export function App() {
   const zoomNoticeTimer = useRef(0);
   const recentTrack = useRef<string | null>(null);
   const backendError = useRef<string | null>(null);
+
+  useEffect(() => {
+    function handleMp3Changed(e: Event) {
+      if (e instanceof CustomEvent && e.detail) {
+        setMp3State(e.detail);
+      }
+    }
+    async function handleMp3Requested() {
+      if (playback.isPlaying) {
+        try {
+          await player.pause();
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    window.addEventListener("mp3:playback-changed", handleMp3Changed);
+    window.addEventListener("mp3:playback-requested", handleMp3Requested);
+    return () => {
+      window.removeEventListener("mp3:playback-changed", handleMp3Changed);
+      window.removeEventListener("mp3:playback-requested", handleMp3Requested);
+    };
+  }, [playback.isPlaying]);
 
   useEffect(() => {
     if (
@@ -234,9 +260,21 @@ export function App() {
     actionTimers.current = [100, 500].map((delay) => window.setTimeout(() => void refresh(), delay));
   }
 
-  async function playCollectedTrack(track: Track, collection: Track[] = [track]) {
+  async function playCollectedTrack(track: Track, collection: any = [track]) {
+    const trackList: Track[] = Array.isArray(collection)
+      ? collection
+      : Array.isArray(collection?.tracks)
+      ? collection.tracks
+      : [track];
+
+    if (track.audioId || track.uri?.startsWith("mp3:")) {
+      await mp3Player.play(track, trackList);
+      recordRecentlyPlayed(track);
+      return;
+    }
+    mp3Player.stop();
     if (!track.uri) throw new Error("This record does not have a Spotify URI.");
-    const uris = collection.flatMap((item) => item.uri ? [item.uri] : []);
+    const uris = trackList.flatMap((item) => item.uri ? [item.uri] : []);
     const sequence = ++selectionSequence.current;
     window.clearTimeout(selectionTimer.current);
     setPendingTrack(track);
@@ -253,7 +291,21 @@ export function App() {
     }
   }
 
-  const displayPlayback = pendingTrack ? { ...playback, current: pendingTrack } : playback;
+  const basePlayback = pendingTrack ? { ...playback, current: pendingTrack } : playback;
+  const activePlayback: PlaybackState = mp3State.current
+    ? {
+        ...basePlayback,
+        active: true,
+        isPlaying: mp3State.isPlaying,
+        current: mp3State.current,
+        volumePercent: Math.round(mp3State.volume * 100),
+        canPlay: true,
+        canPause: true,
+        canSkipNext: true,
+        canSkipPrevious: true,
+      }
+    : basePlayback;
+
   const statusLabel = playback.status === "connecting"
     ? "Connecting to Spotify..."
     : playback.status === "reconnecting"
@@ -261,7 +313,7 @@ export function App() {
       : playback.deviceName ?? (playback.connected ? "Spotify connected" : "Offline");
 
   const themeProps: ThemeProps = {
-    playback: displayPlayback,
+    playback: activePlayback,
     albumQueue,
     background: {
       imageUrl: customBackground.imageUrl,
@@ -269,9 +321,27 @@ export function App() {
       adaptColors: customBackground.adaptColors,
       palette: backgroundPalette,
     },
-    onToggle: () => void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying),
-    onPrevious: () => void runPlaybackAction(player.previous),
-    onNext: () => void runPlaybackAction(player.next),
+    onToggle: () => {
+      if (mp3State.current) {
+        mp3Player.toggle();
+        return;
+      }
+      void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying);
+    },
+    onPrevious: () => {
+      if (mp3State.current) {
+        mp3Player.previous();
+        return;
+      }
+      void runPlaybackAction(player.previous);
+    },
+    onNext: () => {
+      if (mp3State.current) {
+        mp3Player.next();
+        return;
+      }
+      void runPlaybackAction(player.next);
+    },
     onPlayTrack: playCollectedTrack,
     onQueueTrack: (track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("No URI")),
     onQueueAlbum: handleQueueAlbum

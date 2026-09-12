@@ -5,6 +5,7 @@ export interface Collection {
   id: string;
   name: string;
   type?: "custom" | "record";
+  format?: "spotify" | "mp3";
   artist?: string;
   artistImageUrl?: string | null;
   year?: number | null;

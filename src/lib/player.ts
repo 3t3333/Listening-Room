@@ -8,6 +8,7 @@ export interface Track {
   originalImageUrl?: string | null;
   uri: string | null;
   durationMs: number | null;
+  audioId?: string;
 }
 
 export interface PlaybackState {

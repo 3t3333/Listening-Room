@@ -122,18 +122,26 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     "--visualizer-rgb": `${accentRed}, ${accentGreen}, ${accentBlue}`,
   } as CSSProperties;
 
+  const [animatedTrack, setAnimatedTrack] = useState<Track | null>(null);
+  const [animatedSide, setAnimatedSide] = useState<"left" | "right" | null>(null);
+
   const currentSleeveNode = playback.current?.imageUrl && (
     <div className="dj-stand-sleeve">
       <img src={playback.current.imageUrl} alt="" />
       <div className="sleeve-glare" />
     </div>
   );
-  const nextSleeveNode = nextUniqueTrack?.imageUrl && (
+  const nextSleeveNode = nextUniqueTrack?.imageUrl ? (
     <div className="dj-stand-sleeve">
       <img src={nextUniqueTrack.imageUrl} alt="" />
       <div className="sleeve-glare" />
     </div>
-  );
+  ) : animatedTrack?.imageUrl ? (
+    <div className="dj-stand-sleeve">
+      <img src={animatedTrack.imageUrl} alt="" />
+      <div className="sleeve-glare" />
+    </div>
+  ) : null;
 
   const activeLayoutClass = settings.optimizeSingleAlbum && (!deckTracks.left || !deckTracks.right) && settings.singleAlbumLayout !== "dual" 
     ? `layout-${settings.singleAlbumLayout}` 
@@ -191,6 +199,47 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     flyRecordToTurntable(record.tracks?.[0], record, false);
   }
 
+  function handleAnimateFromInline(record: import("../lib/collections").Collection) {
+    const hasEmptyDeck = !deckTracks.left || !deckTracks.right;
+    const isQueueEmpty = (albumQueue?.length ?? 0) === 0;
+
+    if (!hasEmptyDeck || !isQueueEmpty) {
+      alert("Animate is only available when a turntable is empty and nothing else is queued.");
+      return;
+    }
+
+    const targetSide = !deckTracks.left ? 'left' : 'right';
+    const track = record.tracks?.[0];
+    if (!track) return;
+
+    const targetEl = document.getElementById(`turntable-platter-${targetSide}`);
+    const sourceEl = document.querySelector('.inline-vinyl .record-vinyl-disc');
+    
+    if (targetEl && sourceEl && pageContainerRef.current) {
+      const sourceRect = sourceEl.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      
+      const containerRect = pageContainerRef.current.getBoundingClientRect();
+      const absoluteSource = new DOMRect(sourceRect.left - containerRect.left, sourceRect.top - containerRect.top + pageContainerRef.current.scrollTop, sourceRect.width, sourceRect.height);
+      const absoluteTarget = new DOMRect(targetRect.left - containerRect.left, targetRect.top - containerRect.top + pageContainerRef.current.scrollTop, targetRect.width, targetRect.height);
+      
+      setFlyingRecord({ record, track, sourceRect: absoluteSource, targetRect: absoluteTarget });
+      setInspectingCollection(null);
+      pageContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      setTimeout(() => {
+        setAnimatedTrack(track);
+        setAnimatedSide(targetSide);
+        setFlyingRecord(null);
+      }, 1500);
+    } else {
+      setAnimatedTrack(track);
+      setAnimatedSide(targetSide);
+      setInspectingCollection(null);
+      pageContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
+
   return (
     <div ref={pageContainerRef} className="dj-page-container" style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}>
       <div className="dj-setup-container" style={style}>
@@ -217,11 +266,11 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
           </div>
 
           <div className={`dj-desk ${activeLayoutClass}`}>
-            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.left || (!deckTracks.left && !deckTracks.right && activeSide === "left")) && (
+            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.left || animatedSide === "left" || (!deckTracks.left && !deckTracks.right && activeSide === "left")) && (
               <DjTurntable 
-                track={deckTracks.left} 
-                isActive={activeSide === "left" && playback.isPlaying} 
-                isAppPlaying={playback.isPlaying}
+                track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
+                isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
+                isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
                 align="left" 
                 isDark={settings.isDark}
                 onToggleDark={() => setSettings({ ...settings, isDark: !settings.isDark })}
@@ -234,11 +283,11 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
               </div>
             )}
             
-            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.right || (!deckTracks.left && !deckTracks.right && activeSide === "right")) && (
+            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.right || animatedSide === "right" || (!deckTracks.left && !deckTracks.right && activeSide === "right")) && (
               <DjTurntable 
-                track={deckTracks.right} 
-                isActive={activeSide === "right" && playback.isPlaying} 
-                isAppPlaying={playback.isPlaying}
+                track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
+                isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
+                isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
                 align="right"
                 isDark={settings.isDark}
                 onToggleDark={() => setSettings({ ...settings, isDark: !settings.isDark })}
@@ -261,6 +310,7 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
             onPlayTrack={handlePlayFromInline}
             onQueueTrack={onQueueTrack}
             onQueueAlbum={() => handleQueueFromInline(inspectingCollection.collection)}
+            onAnimateRecord={handleAnimateFromInline}
           />
         )}
       {flyingRecord && createPortal(

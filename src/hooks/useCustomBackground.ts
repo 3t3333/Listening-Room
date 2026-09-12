@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
+import { openDatabase, BACKGROUNDS_STORE } from "../lib/mp3Storage";
 
 const settingsKey = "listening-room-background-settings";
-const databaseName = "listening-room-assets";
-const storeName = "backgrounds";
+const storeName = BACKGROUNDS_STORE;
 const backgroundKey = "custom-background";
 
 interface StoredBackground {
@@ -102,29 +102,17 @@ function readSettings(): BackgroundSettings {
 async function readBackground() {
   const database = await openDatabase();
   return request<StoredBackground | undefined>(database.transaction(storeName).objectStore(storeName).get(backgroundKey))
-    .then((stored) => stored ?? null)
-    .finally(() => database.close());
+    .then((stored) => stored ?? null);
 }
 
 async function writeBackground(background: StoredBackground) {
   const database = await openDatabase();
   await request(database.transaction(storeName, "readwrite").objectStore(storeName).put(background, backgroundKey));
-  database.close();
 }
 
 async function deleteBackground() {
   const database = await openDatabase();
   await request(database.transaction(storeName, "readwrite").objectStore(storeName).delete(backgroundKey));
-  database.close();
-}
-
-function openDatabase() {
-  return new Promise<IDBDatabase>((resolve, reject) => {
-    const opening = indexedDB.open(databaseName, 1);
-    opening.onupgradeneeded = () => opening.result.createObjectStore(storeName);
-    opening.onsuccess = () => resolve(opening.result);
-    opening.onerror = () => reject(opening.error ?? new Error("Background storage is unavailable."));
-  });
 }
 
 function request<T = IDBValidKey>(operation: IDBRequest<T>) {

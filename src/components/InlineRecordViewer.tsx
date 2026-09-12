@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, type CSSProperties } from "react";
-import { ArrowLeft, PlayCircle, ListPlus, Trash2, ImagePlus, RefreshCcw } from "lucide-react";
+import { ArrowLeft, PlayCircle, ListPlus, Trash2, ImagePlus, RefreshCcw, Disc3 } from "lucide-react";
 import type { Collection } from "../lib/collections";
 import { deleteCollection } from "../lib/collections";
 import { InteractiveSleeve } from "./InteractiveSleeve";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
+import { mp3Player } from "../lib/mp3Player";
 
 interface Props {
   record: Collection;
@@ -13,9 +14,10 @@ interface Props {
   onPlayTrack: (track: any, record: Collection) => void;
   onQueueTrack?: (track: any) => Promise<void>;
   onQueueAlbum?: (tracks: any[]) => void;
+  onAnimateRecord?: (record: Collection) => void;
 }
 
-export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
+export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, onQueueTrack, onQueueAlbum, onAnimateRecord }: Props) {
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +83,13 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
     }
   }
 
+  function handlePlay(track: any) {
+    if (record.format === "mp3") {
+      void mp3Player.play(track, tracks);
+    }
+    onPlayTrack(track, record);
+  }
+
   return (
     <div ref={containerRef} className={`inline-record-viewer state-${side}`}>
       <div className="inline-record-content">
@@ -93,6 +102,9 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
               {record.year && <span>{record.year}</span>}
               <span>{tracks.length} Tracks</span>
               <span>{totalMins} min</span>
+              {record.format === "mp3" && (
+                <span style={{ color: "var(--primary, #00d26a)", fontWeight: 600 }}>MP3 Record</span>
+              )}
             </div>
           </div>
           
@@ -100,14 +112,26 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
             <div className="record-info-panel fade-in">
               <p className="record-instruction">Click the sleeve to pull out the record.</p>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
-                  <Button onClick={() => onPlayTrack(tracks[0], record)} style={{ flex: 1 }}>
+                  <Button onClick={() => handlePlay(tracks[0])} style={{ flex: 1 }}>
                     <PlayCircle size={18} style={{ marginRight: '8px' }} />
                     Play Album
                   </Button>
-                  <Button variant="outline" onClick={handleQueueAlbum} style={{ flex: 1 }}>
-                    <ListPlus size={18} style={{ marginRight: '8px' }} />
-                    Queue Album
-                  </Button>
+                  {record.format === "mp3" ? (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => onAnimateRecord && onAnimateRecord(record)} 
+                      style={{ flex: 1, borderColor: "var(--primary, #00d26a)", color: "var(--primary, #00d26a)" }}
+                      title="Animate this record on an empty turntable"
+                    >
+                      <Disc3 size={18} style={{ marginRight: '8px' }} />
+                      Animate
+                    </Button>
+                  ) : (
+                    <Button variant="outline" onClick={handleQueueAlbum} style={{ flex: 1 }}>
+                      <ListPlus size={18} style={{ marginRight: '8px' }} />
+                      Queue Album
+                    </Button>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center' }}>
                   <Button variant="outline" onClick={handleChangeArtwork} style={{ flex: 1 }}>
@@ -125,13 +149,13 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
               <h3>{side === "side-a" ? "Side A" : "Side B"}</h3>
               <ul className="record-tracklist">
                 {currentTracks.map((track, i) => (
-                  <li key={i} onClick={() => onPlayTrack(track, record)}>
+                  <li key={i} onClick={() => handlePlay(track)}>
                     <span className="track-number">{side === "side-b" ? sideACount + i + 1 : i + 1}.</span>
                     <span className="track-name">{track.name}</span>
                     <span className="track-duration">
                       {track.durationMs ? `${Math.floor(track.durationMs / 60000)}:${String(Math.floor((track.durationMs % 60000) / 1000)).padStart(2, '0')}` : ""}
                     </span>
-                    {onQueueTrack && (
+                    {onQueueTrack && record.format !== "mp3" && (
                       <ListPlus 
                         className="track-queue-icon" 
                         size={18}

@@ -1,6 +1,7 @@
 import { Pause, Play, SkipBack, SkipForward, Volume1, Volume2, VolumeX } from "lucide-react";
 import { useEffect, useState, type CSSProperties } from "react";
 import { type PlaybackState, player } from "../lib/player";
+import { mp3Player } from "../lib/mp3Player";
 import { Button } from "./ui/button";
 
 interface Props {
@@ -15,6 +16,7 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
   const initialVolume = playback.volumePercent ?? 65;
   const [volume, setVolume] = useState(initialVolume);
   const [submittedVolume, setSubmittedVolume] = useState(initialVolume);
+  const isMp3 = Boolean(playback.current?.audioId || playback.current?.uri?.startsWith("mp3:"));
 
   useEffect(() => {
     if (playback.volumePercent === null) return;
@@ -23,18 +25,24 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
   }, [playback.volumePercent]);
 
   useEffect(() => {
-    if (!playback.active) return;
+    if (!playback.active && !isMp3) return;
     const timer = window.setTimeout(() => {
       if (submittedVolume !== volume) {
         setSubmittedVolume(volume);
-        player.setVolume(volume).catch(console.error);
+        if (isMp3) {
+          mp3Player.setVolume(volume / 100);
+        } else {
+          player.setVolume(volume).catch(console.error);
+        }
       }
-    }, 150);
+    }, 100);
     return () => window.clearTimeout(timer);
-  }, [playback.active, volume, submittedVolume]);
+  }, [playback.active, isMp3, volume, submittedVolume]);
 
   const VolumeIcon = volume === 0 ? VolumeX : volume < 50 ? Volume1 : Volume2;
   const volumeStyle = { "--volume-fill": `${volume}%` } as CSSProperties;
+
+  const isVolumeActive = playback.active || isMp3;
 
   return (
     <div className={`player-controls-container ${compact ? "is-compact" : ""}`}>
@@ -47,7 +55,7 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
       </div>
 
       <div className="volume-control">
-        <button className="volume-trigger" type="button" disabled={!playback.active} aria-label={`Volume ${volume}%`} title={`Volume ${volume}%`}>
+        <button className="volume-trigger" type="button" disabled={!isVolumeActive} aria-label={`Volume ${volume}%`} title={`Volume ${volume}%`}>
           <VolumeIcon />
         </button>
         <div className="volume-panel" style={volumeStyle}>
@@ -57,7 +65,7 @@ export function PlayerControls({ playback, onToggle, onPrevious, onNext, compact
             max="100"
             step="1"
             value={volume}
-            disabled={!playback.active}
+            disabled={!isVolumeActive}
             onChange={(event) => setVolume(Number(event.target.value))}
             aria-label="Playback volume"
             aria-valuetext={`${volume}%`}

@@ -9,6 +9,8 @@ import { player, type Track } from "../lib/player";
 import type { ThemeProps } from "./types";
 import { AddToCollectionPicker } from "../components/AddToCollectionPicker";
 import { RecordPresentation } from "../components/RecordPresentation";
+import { Mp3RecordCreator } from "../components/Mp3RecordCreator";
+import { useMp3Settings } from "../hooks/useMp3Settings";
 
 interface Props extends ThemeProps {
   onPlayTrack: (track: Track, collection?: Track[]) => Promise<void>;
@@ -25,6 +27,8 @@ interface FocusedRecord {
 export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, onPrevious, onNext, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
   const [collections, setCollections] = useState<Collection[]>(getCollections);
   const [collectionId, setCollectionId] = useState<string | null>(null);
+  const [isCreatingMp3, setIsCreatingMp3] = useState(false);
+  const [mp3Settings] = useMp3Settings();
   const [queueOpen, setQueueOpen] = useState(false);
   const [queueTracks, setQueueTracks] = useState<Track[]>([]);
   const [queueLoading, setQueueLoading] = useState(false);
@@ -165,7 +169,15 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
       <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
       <div className="archive-ambient" />
       <div className="archive-room">
-        {queueOpen ? (
+        {isCreatingMp3 ? (
+          <Mp3RecordCreator
+            onBack={() => setIsCreatingMp3(false)}
+            onResolve={(newRec) => {
+              setIsCreatingMp3(false);
+              setCollectionId(newRec.id);
+            }}
+          />
+        ) : queueOpen ? (
           <QueueShelves tracks={[...queueTracks, ...albumQueue.flat()]} loading={queueLoading} onBack={closeQueue} onRefresh={() => void loadQueue()} onInspect={inspectTrack} />
         ) : collection?.type === "record" ? (
           <RecordPresentation record={collection} onBack={closeCollection} onPlayTrack={(track, rec) => { setLifted(true); void onPlayTrack(track, rec.tracks); }} onQueueTrack={onQueueTrack} onQueueAlbum={onQueueAlbum} />
@@ -210,6 +222,20 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
             <div className="archive-index">
               {collections.filter(c => c.type === "record").map((item) => <CollectionEntrance collection={item} onOpen={() => setCollectionId(item.id)} key={item.id} />)}
               
+              {mp3Settings.enableMp3Support && (
+                <button
+                  className="archive-entrance archive-import-entrance"
+                  onClick={() => setIsCreatingMp3(true)}
+                  style={{ borderColor: "rgba(0, 210, 106, 0.4)" }}
+                >
+                  <span className="archive-entrance-label" style={{ color: "var(--primary, #00d26a)" }}>MP3 Mode</span>
+                  <strong>Create MP3 Album</strong>
+                  <small>Upload files into a custom record</small>
+                  <span className="archive-queue-mark" aria-hidden="true"><Disc style={{ color: "var(--primary, #00d26a)" }} /></span>
+                  <b>Create <span>&rarr;</span></b>
+                </button>
+              )}
+
               <button className="archive-entrance archive-import-entrance" onClick={async () => {
                 const url = prompt("Paste a Spotify Album link:");
                 if (url) {

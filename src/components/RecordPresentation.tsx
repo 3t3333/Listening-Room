@@ -4,6 +4,7 @@ import { InteractiveSleeve } from "./InteractiveSleeve";
 import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2, ListPlus } from "lucide-react";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
+import { mp3Player } from "../lib/mp3Player";
 
 interface Props {
   record: Collection;
@@ -74,6 +75,13 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
     }
   }
 
+  function handlePlay(track: any) {
+    if (record.format === "mp3") {
+      void mp3Player.play(track, tracks);
+    }
+    onPlayTrack(track, record);
+  }
+
   return (
     <div className={`record-presentation state-${side}`}>
       <button className="record-presentation-back" onClick={onBack}>
@@ -90,6 +98,9 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
               {record.year && <span>{record.year}</span>}
               <span>{tracks.length} Tracks</span>
               <span>{totalMins} min</span>
+              {record.format === "mp3" && (
+                <span style={{ color: "var(--primary, #00d26a)", fontWeight: 600 }}>MP3 Record</span>
+              )}
             </div>
           </div>
           
@@ -97,13 +108,19 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
             <div className="record-info-panel fade-in">
               <p className="record-instruction">Click the sleeve to pull out the record.</p>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '20px', alignItems: 'center' }}>
-                  <Button onClick={() => onPlayTrack(tracks[0], record)} style={{ flex: 1 }}>
+                  <Button onClick={() => handlePlay(tracks[0])} style={{ flex: 1 }}>
                     <PlayCircle size={18} style={{ marginRight: '8px' }} />
                     Play Album
                   </Button>
-                  <Button variant="outline" onClick={handleQueueAlbum} style={{ flex: 1 }}>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleQueueAlbum} 
+                    disabled={record.format === "mp3"}
+                    title={record.format === "mp3" ? "Queueing MP3 albums will be available with hybrid queueing" : undefined}
+                    style={{ flex: 1, opacity: record.format === "mp3" ? 0.5 : 1 }}
+                  >
                     <ListPlus size={18} style={{ marginRight: '8px' }} />
-                    Queue Album
+                    {record.format === "mp3" ? "Queue (Hybrid Soon)" : "Queue Album"}
                   </Button>
                 </div>
                 <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center' }}>
@@ -122,13 +139,13 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
               <h3>{side === "side-a" ? "Side A" : "Side B"}</h3>
               <ul className="record-tracklist">
                 {currentTracks.map((track, i) => (
-                  <li key={i} onClick={() => onPlayTrack(track, record)}>
+                  <li key={i} onClick={() => handlePlay(track)}>
                     <span className="track-number">{side === "side-b" ? sideACount + i + 1 : i + 1}.</span>
                     <span className="track-name">{track.name}</span>
                     <span className="track-duration">
                       {track.durationMs ? `${Math.floor(track.durationMs / 60000)}:${String(Math.floor((track.durationMs % 60000) / 1000)).padStart(2, '0')}` : ""}
                     </span>
-                    {onQueueTrack && (
+                    {onQueueTrack && record.format !== "mp3" && (
                       <ListPlus 
                         className="track-queue-icon" 
                         size={18}

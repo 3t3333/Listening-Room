@@ -5,6 +5,8 @@ import { player, type AudioOutputState } from "../lib/player";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { useDjSettings } from "../hooks/useDjSettings";
+import { useMp3Settings } from "../hooks/useMp3Settings";
+import { exportMp3Assets, importMp3Assets } from "../lib/mp3Storage";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
@@ -16,8 +18,12 @@ export function BackgroundSettingsDialog({ background, children }: { background:
   const [audio, setAudio] = useState<AudioOutputState | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [djSettings, setDjSettings] = useDjSettings();
+  const [mp3Settings, setMp3Settings] = useMp3Settings();
+  const [isExportingData, setIsExportingData] = useState(false);
+  const [isImportingData, setIsImportingData] = useState(false);
 
-  function handleExportData() {
+  async function handleExportData() {
+    setIsExportingData(true);
     try {
       const keys = [
         "listening-room-collections",
@@ -25,7 +31,8 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         "listening-room-theme",
         "dj-settings",
         "custom-background",
-        "custom-artwork-mappings"   // album artwork overrides (custom image URLs)
+        "custom-artwork-mappings",   // album artwork overrides (custom image URLs)
+        "mp3-settings"
       ];
       
       const data: Record<string, any> = {};
@@ -37,6 +44,19 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           data[key] = value;
         }
       }
+
+      // Package MP3 audio tracks and artwork from IndexedDB
+      try {
+        const mp3Assets = await exportMp3Assets();
+        const audioCount = Object.keys(mp3Assets.audio).length;
+        const artCount = Object.keys(mp3Assets.artwork).length;
+        if (audioCount > 0 || artCount > 0) {
+          data["mp3-assets"] = mp3Assets;
+        }
+      } catch (assetErr: any) {
+        console.warn("Failed to package MP3 audio assets:", assetErr);
+        alert("Warning: Some MP3 audio assets could not be packaged: " + (assetErr?.message || String(assetErr)));
+      }
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -45,8 +65,10 @@ export function BackgroundSettingsDialog({ background, children }: { background:
       a.download = "listening-room-backup.json";
       a.click();
       URL.revokeObjectURL(url);
-    } catch (err) {
-      alert("Failed to export backup: " + err);
+    } catch (err: any) {
+      alert("Failed to export backup: " + (err?.message || String(err)));
+    } finally {
+      setIsExportingData(false);
     }
   }
 
@@ -54,11 +76,20 @@ export function BackgroundSettingsDialog({ background, children }: { background:
     const file = event.target.files?.[0];
     if (!file) return;
 
+    setIsImportingData(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
-        const data = JSON.parse(e.target?.result as string);
+        const text = e.target?.result as string;
+        const data = JSON.parse(text);
+
+        // Restore MP3 audio tracks and artwork to IndexedDB if present
+        if (data["mp3-assets"]) {
+          await importMp3Assets(data["mp3-assets"]);
+        }
+
         for (const [key, value] of Object.entries(data)) {
+          if (key === "mp3-assets") continue;
           if (value === null) {
             localStorage.removeItem(key);
           } else {
@@ -67,9 +98,16 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         }
         alert("Data imported successfully! The application will now reload to apply the restored settings.");
         window.location.reload();
-      } catch (err) {
-        alert("Failed to import backup file. It might be corrupted or in an invalid format.");
+      } catch (err: any) {
+        console.error("Import backup error:", err);
+        alert("Failed to import backup file: " + (err?.message || String(err)));
+      } finally {
+        setIsImportingData(false);
       }
+    };
+    reader.onerror = () => {
+      setIsImportingData(false);
+      alert("Failed to read the backup file from disk.");
     };
     reader.readAsText(file);
   }
@@ -204,6 +242,19 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         {tab === "playback" && (
           <section className="settings-panel">
             <header><span>Features</span><h2>Album Playback</h2><p>Configure the layout of the DJ desk when listening to a single album.</p></header>
+
+            <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
+              <input 
+                type="checkbox" 
+                checked={mp3Settings.enableMp3Support} 
+                onChange={e => setMp3Settings({ ...mp3Settings, enableMp3Support: e.target.checked })}
+                style={{width: '20px', height: '20px', accentColor: 'var(--primary)'}}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Enable MP3 Album Mode</span>
+                <span style={{ fontSize: '12px', color: '#888' }}>Unlock local MP3 album creation in the Archive Room (Page 4) and custom record management.</span>
+              </div>
+            </label>
 
             <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
               <input 
@@ -361,18 +412,18 @@ export function BackgroundSettingsDialog({ background, children }: { background:
               </header>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                <Button onClick={handleExportData} style={{ flex: 1 }}>
+                <Button onClick={handleExportData} disabled={isExportingData || isImportingData} style={{ flex: 1 }}>
                   <Download size={16} style={{ marginRight: '8px' }} />
-                  Export Backup
+                  {isExportingData ? "Packaging Backup..." : "Export Backup"}
                 </Button>
-                <Button variant="outline" onClick={() => importInput.current?.click()} style={{ flex: 1 }}>
+                <Button variant="outline" disabled={isExportingData || isImportingData} onClick={() => importInput.current?.click()} style={{ flex: 1 }}>
                   <Upload size={16} style={{ marginRight: '8px' }} />
-                  Import Backup
+                  {isImportingData ? "Restoring Backup..." : "Import Backup"}
                 </Button>
                 <input ref={importInput} type="file" accept=".json" style={{ display: 'none' }} onChange={handleImportData} />
               </div>
               <p style={{ marginTop: '20px', color: '#888', fontSize: '13px', lineHeight: '1.5' }}>
-                Note: This backup includes all your saved albums, custom artworks, and theme preferences. It does not include your Spotify credentials. When you import this file, the app will instantly reload to apply your settings.
+                Note: This backup includes all your saved albums, custom artworks, MP3 audio files, and theme preferences. It does not include your Spotify credentials. When you import this file, the app will restore all audio and settings, then reload.
               </p>
             </section>
           )}
