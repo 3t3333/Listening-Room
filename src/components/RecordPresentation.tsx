@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect } from "react";
 import { type Collection, deleteCollection } from "../lib/collections";
 import { InteractiveSleeve } from "./InteractiveSleeve";
-import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2, ListPlus } from "lucide-react";
+import { Disc3, ArrowLeft, PlayCircle, ImagePlus, RefreshCcw, Trash2, ListPlus, SlidersHorizontal } from "lucide-react";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 import { mp3Player } from "../lib/mp3Player";
+import { getVinylColorStyle } from "../lib/vinylColors";
+import { useDjSettings } from "../hooks/useDjSettings";
+import { AdvancedAlbumDialog } from "./AdvancedAlbumDialog";
 
 interface Props {
   record: Collection;
@@ -15,14 +18,21 @@ interface Props {
 }
 
 export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
+  const [djSettings] = useDjSettings();
+  const [currentRecord, setCurrentRecord] = useState<Collection>(record);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
 
   useEffect(() => {
+    setCurrentRecord(record);
+  }, [record]);
+
+  useEffect(() => {
     if (side !== "info") setHasOpened(true);
   }, [side]);
-  
-  const tracks = record.tracks || [];
+
+  const tracks = currentRecord.tracks || [];
   const sideACount = Math.ceil(tracks.length / 2);
   const sideA = tracks.slice(0, sideACount);
   const sideB = tracks.slice(sideACount);
@@ -76,9 +86,6 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
   }
 
   function handlePlay(track: any) {
-    if (record.format === "mp3") {
-      void mp3Player.play(track, tracks);
-    }
     onPlayTrack(track, record);
   }
 
@@ -100,6 +107,12 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
               <span>{totalMins} min</span>
               {record.format === "mp3" && (
                 <span style={{ color: "var(--primary, #00d26a)", fontWeight: 600 }}>MP3 Record</span>
+              )}
+              {currentRecord.customization?.vinylColor && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: currentRecord.customization.vinylColor, border: '1px solid rgba(255,255,255,0.4)', display: 'inline-block' }} />
+                  Custom Pressing
+                </span>
               )}
             </div>
           </div>
@@ -133,6 +146,16 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
                     Remove
                   </Button>
                 </div>
+                {djSettings.enableAdvancedAlbumEditing && (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsAdvancedOpen(true)} 
+                    style={{ width: '100%', marginTop: '10px' }}
+                  >
+                    <SlidersHorizontal size={16} style={{ marginRight: '6px' }} />
+                    Advanced
+                  </Button>
+                )}
             </div>
           ) : (
             <div className="record-tracks-panel fade-in">
@@ -176,7 +199,10 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
                  }
                }}
              >
-               <div className={`record-vinyl-disc ${side === "side-b" ? "is-flipped" : ""}`}>
+                <div 
+                  className={`record-vinyl-disc ${side === "side-b" ? "is-flipped" : ""}`}
+                  style={getVinylColorStyle(currentRecord.customization?.vinylColor)}
+                >
                  <div className="record-vinyl-grooves record-vinyl-grooves-a"></div>
                  <div className="record-vinyl-grooves record-vinyl-grooves-b"></div>
                  <div 
@@ -202,6 +228,13 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
           </div>
         </div>
       </div>
+
+      <AdvancedAlbumDialog 
+        open={isAdvancedOpen} 
+        onOpenChange={setIsAdvancedOpen} 
+        record={currentRecord} 
+        onSaved={(updated) => setCurrentRecord(updated)} 
+      />
     </div>
   );
 }

@@ -20,7 +20,14 @@ export function VisualizerStandTheme({ playback, background, onToggle, onPreviou
 
   return (
     <section className="theme-scene visualizer-stand-theme" style={style}>
-      <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
+      <CustomBackground 
+        imageUrl={background.imageUrl} 
+        opacity={background.opacity} 
+        positionX={background.positionX} 
+        positionY={background.positionY} 
+        fit={background.fit} 
+        zoom={background.zoom} 
+      />
       <div className="visualizer-stand-ambient" />
       <div className="visualizer-stand-floor" />
 

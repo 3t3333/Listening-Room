@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { Disc3 } from "lucide-react";
 import { player, type Track } from "../lib/player";
 import { DjTurntable } from "../components/DjTurntable";
 import { CustomBackground } from "../components/CustomBackground";
@@ -8,13 +9,46 @@ import { ScrollingTitle } from "../components/ScrollingTitle";
 import { BlockVisualizer } from "../components/BlockVisualizer";
 import { useArtworkPalette } from "../hooks/useArtworkColor";
 import type { ThemeProps } from "./types";
-import { useDjSettings } from "../hooks/useDjSettings";
+import { useDjSettings, type DjTurntableTheme } from "../hooks/useDjSettings";
 import { SpineShelf } from "../components/SpineShelf";
 import { InlineRecordViewer } from "../components/InlineRecordViewer";
+import { useActiveCustomization, findMatchingCollection } from "../hooks/useActiveCustomization";
+import { getVinylColorStyle } from "../lib/vinylColors";
+import { getCollections, type Collection } from "../lib/collections";
+import { useVerticalOrientation } from "../hooks/useVerticalOrientation";
 
 export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPrevious, onNext, onPlayTrack, onQueueTrack, onQueueAlbum }: ThemeProps) {
   const [settings, setSettings] = useDjSettings();
   const [activeSide, setActiveSide] = useState<"left" | "right">("left");
+  const [themeToast, setThemeToast] = useState<string | null>(null);
+  const themeToastTimer = useRef<number | null>(null);
+
+  const currentTurntableTheme: DjTurntableTheme = settings.turntableTheme || (settings.isDark ? "dark" : "light");
+
+  function cycleTurntableTheme() {
+    const order: DjTurntableTheme[] = ["light", "dark", "glass-clear", "glass-smoked"];
+    const nextIdx = (order.indexOf(currentTurntableTheme) + 1) % order.length;
+    const nextTheme = order[nextIdx];
+    const labels: Record<DjTurntableTheme, string> = {
+      "light": "Classic Silver",
+      "dark": "Matte Black",
+      "glass-clear": "Clear Frosted Glass",
+      "glass-smoked": "Smoked Obsidian Glass",
+    };
+    
+    setSettings({
+      ...settings,
+      turntableTheme: nextTheme,
+      isDark: nextTheme === "dark" || nextTheme === "glass-smoked",
+    });
+
+    if (themeToastTimer.current) window.clearTimeout(themeToastTimer.current);
+    setThemeToast(labels[nextTheme]);
+    themeToastTimer.current = window.setTimeout(() => {
+      setThemeToast(null);
+    }, 1800);
+  }
+
   const [deckTracks, setDeckTracks] = useState<{ left: Track | null; right: Track | null }>({
     left: null,
     right: null,
@@ -114,16 +148,19 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     }
   }, [playback.current?.uri, playback.next?.uri, nextUniqueTrack?.uri, settings.optimizeSingleAlbum, albumQueue]);
 
+  const customization = useActiveCustomization(playback.current, background);
   const artworkPalette = useArtworkPalette(playback.current?.imageUrl);
-  const palette = background.adaptColors && background.imageUrl ? background.palette : artworkPalette;
+  const palette = background.adaptColors && (customization.effectiveImageUrl || background.imageUrl) ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
+  const visualizerRgb = customization.customVisualizerRgb || `${accentRed}, ${accentGreen}, ${accentBlue}`;
   const style = {
     "--ambient-rgb": `${red}, ${green}, ${blue}`,
-    "--visualizer-rgb": `${accentRed}, ${accentGreen}, ${accentBlue}`,
+    "--visualizer-rgb": visualizerRgb,
   } as CSSProperties;
 
   const [animatedTrack, setAnimatedTrack] = useState<Track | null>(null);
   const [animatedSide, setAnimatedSide] = useState<"left" | "right" | null>(null);
+  const [animatedRecord, setAnimatedRecord] = useState<Collection | null>(null);
 
   const currentSleeveNode = playback.current?.imageUrl && (
     <div className="dj-stand-sleeve">
@@ -230,78 +267,242 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
       setTimeout(() => {
         setAnimatedTrack(track);
         setAnimatedSide(targetSide);
+        setAnimatedRecord(record);
         setFlyingRecord(null);
       }, 1500);
     } else {
       setAnimatedTrack(track);
       setAnimatedSide(targetSide);
+      setAnimatedRecord(record);
       setInspectingCollection(null);
       pageContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }
 
+  const [collections, setCollections] = useState<Collection[]>(() => getCollections());
+
+  useEffect(() => {
+    function handleCollectionsChanged() {
+      setCollections(getCollections());
+    }
+    window.addEventListener("collections:changed", handleCollectionsChanged);
+    return () => window.removeEventListener("collections:changed", handleCollectionsChanged);
+  }, []);
+
+  useEffect(() => {
+    function resetParentScroll() {
+      const themeTransition = pageContainerRef.current?.closest(".theme-transition") as HTMLElement | null;
+      if (themeTransition && themeTransition.scrollTop !== 0) {
+        themeTransition.scrollTop = 0;
+      }
+      const appShell = pageContainerRef.current?.closest(".app-shell") as HTMLElement | null;
+      if (appShell && appShell.scrollTop !== 0) {
+        appShell.scrollTop = 0;
+      }
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    }
+    resetParentScroll();
+    const timer = setTimeout(resetParentScroll, 100);
+    return () => clearTimeout(timer);
+  }, [inspectingCollection]);
+
+  const leftTrack = animatedSide === "left" && animatedTrack ? animatedTrack : deckTracks.left;
+  const rightTrack = animatedSide === "right" && animatedTrack ? animatedTrack : deckTracks.right;
+
+  const leftVinylColor = (animatedSide === "left" && animatedRecord)
+    ? (animatedRecord.customization?.vinylColor || null)
+    : (leftTrack ? findMatchingCollection(leftTrack, collections)?.customization?.vinylColor || null : null);
+
+  const rightVinylColor = (animatedSide === "right" && animatedRecord)
+    ? (animatedRecord.customization?.vinylColor || null)
+    : (rightTrack ? findMatchingCollection(rightTrack, collections)?.customization?.vinylColor || null : null);
+
+  const verticalOrientation = useVerticalOrientation(settings);
+  const isVerticalRig = verticalOrientation.isVertical && !activeLayoutClass;
+
+  const createSleeveNode = (imageUrl?: string | null, title?: string | null) => (
+    <div className="dj-stand-sleeve">
+      {imageUrl ? (
+        <img src={imageUrl} alt={title || "Album Jacket"} draggable={false} />
+      ) : (
+        <div className="dj-stand-sleeve-placeholder">
+          <Disc3 size={42} strokeWidth={1} />
+        </div>
+      )}
+      <div className="sleeve-glare" />
+    </div>
+  );
+
+  const nextTrackImg = nextUniqueTrack?.imageUrl || playback.next?.imageUrl || null;
+  const currentTrackImg = playback.current?.imageUrl || null;
+
+  const leftDeckImage = (animatedSide === "left" && animatedTrack?.imageUrl) || deckTracks.left?.imageUrl || (activeSide === "left" ? currentTrackImg : nextTrackImg || currentTrackImg);
+  const rightDeckImage = (animatedSide === "right" && animatedTrack?.imageUrl) || deckTracks.right?.imageUrl || (activeSide === "right" ? currentTrackImg : nextTrackImg || currentTrackImg);
+
+  const leftVerticalSleeve = createSleeveNode(leftDeckImage, (animatedSide === "left" ? animatedTrack?.name : deckTracks.left?.name) || playback.current?.name);
+  const rightVerticalSleeve = createSleeveNode(rightDeckImage, (animatedSide === "right" ? animatedTrack?.name : deckTracks.right?.name) || nextUniqueTrack?.name || playback.next?.name || playback.current?.name);
+
+  const leftTurntableBattle = (
+    <div className="turntable-battle-wrapper is-battle">
+      <DjTurntable 
+        track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
+        isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
+        isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
+        align="left" 
+        theme={currentTurntableTheme}
+        isDark={settings.isDark}
+        tonearmStyle={settings.tonearmStyle || "technics-classic"}
+        onCycleTheme={cycleTurntableTheme}
+        onToggleDark={cycleTurntableTheme}
+        vinylColor={leftVinylColor}
+      />
+    </div>
+  );
+
+  const rightTurntableBattle = (
+    <div className="turntable-battle-wrapper is-battle">
+      <DjTurntable 
+        track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
+        isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
+        isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
+        align="right" 
+        theme={currentTurntableTheme}
+        isDark={settings.isDark}
+        tonearmStyle={settings.tonearmStyle || "technics-classic"}
+        onCycleTheme={cycleTurntableTheme}
+        onToggleDark={cycleTurntableTheme}
+        vinylColor={rightVinylColor}
+      />
+    </div>
+  );
+
+  const renderVerticalDeck = (turntableNode: React.ReactNode, sleeveNode: React.ReactNode) => (
+    <div className="vertical-deck-unit">
+      <div className="vertical-sleeve-container">
+        {sleeveNode}
+        {settings.showSleeveStand && <div className={`dj-sleeve-stand-mini dj-theme-${currentTurntableTheme}`} />}
+      </div>
+      {turntableNode}
+    </div>
+  );
+
   return (
-    <div ref={pageContainerRef} className="dj-page-container" style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}>
-      <div className="dj-setup-container" style={style}>
-        <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
+    <div 
+      ref={pageContainerRef} 
+      className={`dj-page-container ${settings.enableGlassyShelf !== false ? "with-glassy-shelf" : "no-glassy-shelf"} ${isVerticalRig ? "is-vertical-rig" : "is-horizontal-rig"}`} 
+      style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}
+    >
+      <CustomBackground 
+        imageUrl={customization.effectiveImageUrl} 
+        opacity={customization.effectiveOpacity} 
+        positionX={customization.effectivePositionX}
+        positionY={customization.effectivePositionY}
+        fit={customization.effectiveFit}
+        zoom={customization.effectiveZoom}
+        className="dj-page-background"
+      />
+      <div className={`dj-setup-container dj-theme-${currentTurntableTheme} ${isVerticalRig ? "is-vertical" : ""}`} style={style}>
+        {themeToast && (
+          <div className="dj-theme-toast">
+            <span>Turntables: {themeToast}</span>
+          </div>
+        )}
 
         <div className="dj-top-meta">
           <ScrollingTitle>{playback.current?.name ?? "Nothing playing"}</ScrollingTitle>
           <p>{playback.current?.artist ?? "Choose a record from your library"}</p>
         </div>
 
-        <div className="dj-rig-wrapper">
-          <div className={`dj-long-stand ${activeLayoutClass} ${!settings.showSleeveStand ? 'hide-stand' : ''}`}>
-            {activeSide === "left" ? (
-              <>
-                {currentSleeveNode}
-                {nextSleeveNode}
-              </>
-            ) : (
-              <>
-                {nextSleeveNode}
-                {currentSleeveNode}
-              </>
-            )}
+        {isVerticalRig ? (
+          <div className={`dj-rig-wrapper vertical-rig vertical-${verticalOrientation.direction} jackets-${verticalOrientation.jacketPlacement}`}>
+            <div className={`dj-desk vertical-rig dj-theme-${currentTurntableTheme} ${activeLayoutClass}`}>
+              {verticalOrientation.direction === "ccw" ? (
+                <>
+                  {renderVerticalDeck(rightTurntableBattle, rightVerticalSleeve)}
+                  {!hideVisualizer && (
+                    <div className="dj-center-console horizontal">
+                      <BlockVisualizer vertical={false} />
+                    </div>
+                  )}
+                  {renderVerticalDeck(leftTurntableBattle, leftVerticalSleeve)}
+                </>
+              ) : (
+                <>
+                  {renderVerticalDeck(leftTurntableBattle, leftVerticalSleeve)}
+                  {!hideVisualizer && (
+                    <div className="dj-center-console horizontal">
+                      <BlockVisualizer vertical={false} />
+                    </div>
+                  )}
+                  {renderVerticalDeck(rightTurntableBattle, rightVerticalSleeve)}
+                </>
+              )}
+            </div>
           </div>
+        ) : (
+          <div className="dj-rig-wrapper">
+            <div className={`dj-long-stand dj-theme-${currentTurntableTheme} ${activeLayoutClass} ${!settings.showSleeveStand ? 'hide-stand' : ''}`}>
+              {activeSide === "left" ? (
+                <>
+                  {currentSleeveNode}
+                  {nextSleeveNode}
+                </>
+              ) : (
+                <>
+                  {nextSleeveNode}
+                  {currentSleeveNode}
+                </>
+              )}
+            </div>
 
-          <div className={`dj-desk ${activeLayoutClass}`}>
-            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.left || animatedSide === "left" || (!deckTracks.left && !deckTracks.right && activeSide === "left")) && (
-              <DjTurntable 
-                track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
-                isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
-                isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
-                align="left" 
-                isDark={settings.isDark}
-                onToggleDark={() => setSettings({ ...settings, isDark: !settings.isDark })}
-              />
-            )}
+            <div className={`dj-desk dj-theme-${currentTurntableTheme} ${activeLayoutClass}`}>
+              {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.left || animatedSide === "left" || (!deckTracks.left && !deckTracks.right && activeSide === "left")) && (
+                <DjTurntable 
+                  track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
+                  isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
+                  isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
+                  align="left" 
+                  theme={currentTurntableTheme}
+                  isDark={settings.isDark}
+                  tonearmStyle={settings.tonearmStyle || "technics-classic"}
+                  onCycleTheme={cycleTurntableTheme}
+                  onToggleDark={cycleTurntableTheme}
+                  vinylColor={leftVinylColor}
+                />
+              )}
 
-            {!hideVisualizer && (
-              <div className={`dj-center-console ${isVerticalVisualizer ? '' : 'horizontal'}`}>
-                <BlockVisualizer vertical={isVerticalVisualizer} />
-              </div>
-            )}
-            
-            {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.right || animatedSide === "right" || (!deckTracks.left && !deckTracks.right && activeSide === "right")) && (
-              <DjTurntable 
-                track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
-                isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
-                isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
-                align="right"
-                isDark={settings.isDark}
-                onToggleDark={() => setSettings({ ...settings, isDark: !settings.isDark })}
-              />
-            )}
+              {!hideVisualizer && (
+                <div className={`dj-center-console ${isVerticalVisualizer ? '' : 'horizontal'}`}>
+                  <BlockVisualizer vertical={isVerticalVisualizer} />
+                </div>
+              )}
+              
+              {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.right || animatedSide === "right" || (!deckTracks.left && !deckTracks.right && activeSide === "right")) && (
+                <DjTurntable 
+                  track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
+                  isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
+                  isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
+                  align="right" 
+                  theme={currentTurntableTheme}
+                  isDark={settings.isDark}
+                  tonearmStyle={settings.tonearmStyle || "technics-classic"}
+                  onCycleTheme={cycleTurntableTheme}
+                  onToggleDark={cycleTurntableTheme}
+                  vinylColor={rightVinylColor}
+                />
+              )}
+            </div>
           </div>
-        </div>
+        )}
         
         <div className="dj-bottom-controls">
           <PlayerControls compact playback={playback} onToggle={onToggle} onPrevious={onPrevious} onNext={onNext} />
         </div>
       </div>
       
-      <SpineShelf onInspect={(col, rect) => setInspectingCollection({ collection: col, rect })} />
+      <SpineShelf theme={currentTurntableTheme} onInspect={(col, rect) => setInspectingCollection({ collection: col, rect })} />
         {inspectingCollection && (
           <InlineRecordViewer 
             record={inspectingCollection.collection} 
@@ -331,7 +532,14 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
             pointerEvents: 'none'
           } as CSSProperties}
         >
-          <div className="record-vinyl-disc" style={{ transform: 'rotateX(55deg)', animation: 'fly-spin 1.5s linear forwards' }}>
+          <div 
+            className="record-vinyl-disc" 
+            style={{ 
+              transform: 'rotateX(55deg)', 
+              animation: 'fly-spin 1.5s linear forwards',
+              ...getVinylColorStyle(flyingRecord.record.customization?.vinylColor) 
+            }}
+          >
             <div className="record-vinyl-grooves" />
             <div className="record-vinyl-label" style={flyingRecord.track.imageUrl ? { backgroundImage: `url(${flyingRecord.track.imageUrl})` } : {}}>
             </div>

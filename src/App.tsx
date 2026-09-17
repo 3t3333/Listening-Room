@@ -1,12 +1,13 @@
 import { Disc3 } from "lucide-react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { BackgroundSettingsDialog } from "./components/BackgroundSettingsDialog";
 import { ThemeIndicator } from "./components/ThemeIndicator";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { Button } from "./components/ui/button";
 import { useArtworkPalette } from "./hooks/useArtworkColor";
 import { useCustomBackground } from "./hooks/useCustomBackground";
+import { useActiveCustomization } from "./hooks/useActiveCustomization";
 import { useTheme } from "./hooks/useTheme";
 import { useDjSettings } from "./hooks/useDjSettings";
 import { defaultCollectionId, getCollections, recordRecentlyPlayed } from "./lib/collections";
@@ -36,6 +37,13 @@ const emptyPlayback: PlaybackState = {
   error: null,
 };
 
+function isSameTrack(a: Track | null | undefined, b: Track | null | undefined): boolean {
+  if (!a || !b) return false;
+  if (a.uri && b.uri && a.uri === b.uri) return true;
+  if ((a as any).audioId && (b as any).audioId && (a as any).audioId === (b as any).audioId) return true;
+  return a.name === b.name && a.artist === b.artist;
+}
+
 export function App() {
   const [playback, setPlayback] = useState(emptyPlayback);
   const [pendingTrack, setPendingTrack] = useState<Track | null>(null);
@@ -48,7 +56,6 @@ export function App() {
   const [djSettings] = useDjSettings();
   const [albumQueue, setAlbumQueue] = useState<Track[][]>([]);
   const customBackground = useCustomBackground();
-  const backgroundPalette = useArtworkPalette(customBackground.imageUrl);
   const [mp3State, setMp3State] = useState<Mp3PlaybackState>(() => mp3Player.getState());
   const refreshSequence = useRef(0);
   const appliedRefresh = useRef(0);
@@ -58,6 +65,33 @@ export function App() {
   const zoomNoticeTimer = useRef(0);
   const recentTrack = useRef<string | null>(null);
   const backendError = useRef<string | null>(null);
+  const currentAlbumRef = useRef<Track[] | null>(null);
+  const hasPlayedAlbumRef = useRef(false);
+  const isTransitioningRef = useRef(false);
+  const userPausedRef = useRef(false);
+  const wasPlayingRef = useRef(false);
+
+  const albumQueueRef = useRef(albumQueue);
+  useEffect(() => {
+    albumQueueRef.current = albumQueue;
+  }, [albumQueue]);
+
+  const djSettingsRef = useRef(djSettings);
+  useEffect(() => {
+    djSettingsRef.current = djSettings;
+  }, [djSettings]);
+
+  useEffect(() => {
+    const style = djSettings.vinylDiscStyle || "realistic";
+    document.documentElement.dataset.vinylDiscStyle = style;
+    if (style === "classic") {
+      document.documentElement.classList.add("vinyl-style-classic");
+      document.documentElement.classList.remove("vinyl-style-realistic");
+    } else {
+      document.documentElement.classList.add("vinyl-style-realistic");
+      document.documentElement.classList.remove("vinyl-style-classic");
+    }
+  }, [djSettings.vinylDiscStyle]);
 
   useEffect(() => {
     function handleMp3Changed(e: Event) {
@@ -75,29 +109,29 @@ export function App() {
       }
     }
 
+    function handleMp3Error(e: Event) {
+      if (e instanceof CustomEvent && e.detail) {
+        setError(`Audio playback error (${e.detail.code || "UNKNOWN"}): ${e.detail.message || "Could not play audio track."}`);
+      }
+    }
+
+    function handleMp3AlbumCompleted() {
+      if (albumQueueRef.current.length > 0) {
+        playNextQueuedAlbum();
+      }
+    }
+
     window.addEventListener("mp3:playback-changed", handleMp3Changed);
     window.addEventListener("mp3:playback-requested", handleMp3Requested);
+    window.addEventListener("mp3:playback-error", handleMp3Error);
+    window.addEventListener("mp3:album-completed", handleMp3AlbumCompleted);
     return () => {
       window.removeEventListener("mp3:playback-changed", handleMp3Changed);
       window.removeEventListener("mp3:playback-requested", handleMp3Requested);
+      window.removeEventListener("mp3:playback-error", handleMp3Error);
+      window.removeEventListener("mp3:album-completed", handleMp3AlbumCompleted);
     };
   }, [playback.isPlaying]);
-
-  useEffect(() => {
-    if (
-      playback.active && 
-      !playback.isPlaying && 
-      !playback.current && 
-      albumQueue.length > 0
-    ) {
-      const nextAlbum = albumQueue[0];
-      setAlbumQueue((q) => {
-        const rest = q.slice(1);
-        return djSettings.loopAlbumQueue ? [...rest, nextAlbum] : rest;
-      });
-      playCollectedTrack(nextAlbum[0], nextAlbum).catch(console.error);
-    }
-  }, [playback.active, playback.isPlaying, playback.current, albumQueue, djSettings.loopAlbumQueue]);
 
   function handleQueueAlbum(tracks: Track[]) {
     if (djSettings.queueAlbumsSequentially) {
@@ -168,6 +202,7 @@ export function App() {
     };
     window.addEventListener("artwork:changed", handleArtworkChanged);
 
+    void mp3Player.syncAudioOutput();
     void poll();
     return () => {
       cancelled = true;
@@ -267,9 +302,25 @@ export function App() {
       ? collection.tracks
       : [track];
 
-    if (track.audioId || track.uri?.startsWith("mp3:")) {
-      await mp3Player.play(track, trackList);
-      recordRecentlyPlayed(track);
+    currentAlbumRef.current = trackList;
+    hasPlayedAlbumRef.current = true;
+    userPausedRef.current = false;
+
+    const isMp3 = Boolean(
+      track.audioId ||
+      track.uri?.startsWith("mp3:") ||
+      (collection as any)?.format === "mp3"
+    );
+
+    if (isMp3) {
+      setError(null);
+      try {
+        await mp3Player.play(track, trackList);
+        recordRecentlyPlayed(track);
+      } catch (err: any) {
+        console.error("Failed to play MP3 track:", err);
+        setError(err?.message || "Failed to play MP3 track");
+      }
       return;
     }
     mp3Player.stop();
@@ -291,6 +342,38 @@ export function App() {
     }
   }
 
+  const isAtEndOfCurrentAlbum = useCallback((currentTrack: Track | null): boolean => {
+    const album = currentAlbumRef.current;
+    if (!album || album.length === 0 || !currentTrack) return false;
+    const lastTrack = album[album.length - 1];
+    return isSameTrack(currentTrack, lastTrack);
+  }, []);
+
+  const playNextQueuedAlbum = useCallback(() => {
+    if (isTransitioningRef.current) return;
+    if (albumQueueRef.current.length === 0) return;
+
+    isTransitioningRef.current = true;
+    const nextAlbum = albumQueueRef.current[0];
+
+    setAlbumQueue((q) => {
+      const rest = q.slice(1);
+      return djSettingsRef.current.loopAlbumQueue ? [...rest, nextAlbum] : rest;
+    });
+
+    if (nextAlbum && nextAlbum.length > 0) {
+      playCollectedTrack(nextAlbum[0], nextAlbum)
+        .catch(console.error)
+        .finally(() => {
+          setTimeout(() => {
+            isTransitioningRef.current = false;
+          }, 1500);
+        });
+    } else {
+      isTransitioningRef.current = false;
+    }
+  }, []);
+
   const basePlayback = pendingTrack ? { ...playback, current: pendingTrack } : playback;
   const activePlayback: PlaybackState = mp3State.current
     ? {
@@ -306,6 +389,34 @@ export function App() {
       }
     : basePlayback;
 
+  useEffect(() => {
+    const isCurrentlyPlaying = activePlayback.isPlaying;
+    const wasPlaying = wasPlayingRef.current;
+    wasPlayingRef.current = isCurrentlyPlaying;
+
+    if (albumQueue.length === 0 || !hasPlayedAlbumRef.current || isTransitioningRef.current) {
+      return;
+    }
+
+    const isEnd = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
+    const finishedNaturally = wasPlaying && !isCurrentlyPlaying && !userPausedRef.current && isEnd;
+    const idleAtEnd = !isCurrentlyPlaying && isEnd && !userPausedRef.current;
+
+    if (finishedNaturally || idleAtEnd) {
+      playNextQueuedAlbum();
+    }
+  }, [
+    activePlayback.isPlaying,
+    activePlayback.current,
+    activePlayback.next,
+    albumQueue.length,
+    isAtEndOfCurrentAlbum,
+    playNextQueuedAlbum,
+  ]);
+
+  const activeCustomization = useActiveCustomization(activePlayback.current, customBackground);
+  const backgroundPalette = useArtworkPalette(activeCustomization.effectiveImageUrl);
+
   const statusLabel = playback.status === "connecting"
     ? "Connecting to Spotify..."
     : playback.status === "reconnecting"
@@ -316,19 +427,48 @@ export function App() {
     playback: activePlayback,
     albumQueue,
     background: {
-      imageUrl: customBackground.imageUrl,
-      opacity: customBackground.opacity,
+      imageUrl: activeCustomization.effectiveImageUrl,
+      opacity: activeCustomization.effectiveOpacity,
       adaptColors: customBackground.adaptColors,
       palette: backgroundPalette,
+      positionX: activeCustomization.effectivePositionX,
+      positionY: activeCustomization.effectivePositionY,
+      fit: activeCustomization.effectiveFit,
+      zoom: activeCustomization.effectiveZoom,
     },
     onToggle: () => {
-      if (mp3State.current) {
-        mp3Player.toggle();
+      // 1. If currently playing MP3, toggle pause/play
+      if (mp3State.current && mp3State.isPlaying) {
+        userPausedRef.current = true;
+        mp3Player.pause();
         return;
       }
+      if (mp3State.current && !mp3State.isPlaying) {
+        userPausedRef.current = false;
+        mp3Player.resume();
+        return;
+      }
+
+      // 2. If playback is paused at the end of an album
+      const isEnd = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
+      if (!activePlayback.isPlaying && isEnd) {
+        if (albumQueue.length > 0) {
+          playNextQueuedAlbum();
+          return;
+        }
+        if (currentAlbumRef.current && currentAlbumRef.current.length > 0) {
+          userPausedRef.current = false;
+          void playCollectedTrack(currentAlbumRef.current[0], currentAlbumRef.current);
+          return;
+        }
+      }
+
+      // 3. Normal Spotify play/pause
+      userPausedRef.current = playback.isPlaying;
       void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying);
     },
     onPrevious: () => {
+      userPausedRef.current = false;
       if (mp3State.current) {
         mp3Player.previous();
         return;
@@ -336,8 +476,13 @@ export function App() {
       void runPlaybackAction(player.previous);
     },
     onNext: () => {
+      userPausedRef.current = false;
       if (mp3State.current) {
         mp3Player.next();
+        return;
+      }
+      if (!playback.next && albumQueue.length > 0) {
+        playNextQueuedAlbum();
         return;
       }
       void runPlaybackAction(player.next);
@@ -346,6 +491,13 @@ export function App() {
     onQueueTrack: (track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("No URI")),
     onQueueAlbum: handleQueueAlbum
   };
+  useEffect(() => {
+    const style = djSettings.vinylDiscStyle || "realistic";
+    document.documentElement.dataset.vinylDiscStyle = style;
+    document.documentElement.classList.remove("vinyl-style-realistic", "vinyl-style-classic");
+    document.documentElement.classList.add(`vinyl-style-${style}`);
+  }, [djSettings.vinylDiscStyle]);
+
   const shellStyle = pageZoom === 1 ? undefined : {
     width: `${100 / pageZoom}%`,
     height: `${100 / pageZoom}dvh`,
@@ -354,7 +506,7 @@ export function App() {
   } as CSSProperties;
 
   return (
-    <main className={`app-shell theme-${theme} ${showChrome ? "" : "chrome-hidden"}`} style={shellStyle}>
+    <main className={`app-shell theme-${theme} vinyl-style-${djSettings.vinylDiscStyle || "realistic"} ${showChrome ? "" : "chrome-hidden"}`} style={shellStyle}>
       <header className="topbar" aria-hidden={!showChrome}>
         <div className="wordmark">
           <BackgroundSettingsDialog background={customBackground}>

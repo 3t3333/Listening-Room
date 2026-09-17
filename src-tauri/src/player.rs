@@ -696,6 +696,17 @@ fn reduce_player_event(
                 state.current = None;
             }
         }
+        PlayerEvent::EndOfTrack { .. } => {
+            if queue_tx.borrow().upcoming.is_empty() {
+                state.is_playing = false;
+                state.current = None;
+                state.next = None;
+                state.can_play = false;
+                state.can_pause = false;
+                state.can_skip_next = false;
+                state.can_skip_previous = false;
+            }
+        }
         PlayerEvent::VolumeChanged { volume } => {
             state.volume_percent = Some(librespot_to_percent(volume));
         }

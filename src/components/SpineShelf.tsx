@@ -1,21 +1,45 @@
 import { useEffect, useState, useRef } from "react";
 import { getCollections, type Collection } from "../lib/collections";
 import { Disc3 } from "lucide-react";
+import type { DjTurntableTheme } from "../hooks/useDjSettings";
 
-export function SpineShelf({ onInspect }: { onInspect: (record: Collection, rect: DOMRect) => void }) {
+export function SpineShelf({ 
+  theme = "dark", 
+  onInspect 
+}: { 
+  theme?: DjTurntableTheme; 
+  onInspect: (record: Collection, rect: DOMRect) => void; 
+}) {
   const [collections, setCollections] = useState<Collection[]>([]);
 
   useEffect(() => {
-    setCollections(getCollections().filter(c => c.type === "record"));
+    function refreshShelf() {
+      setCollections(getCollections().filter(c => c.type === "record"));
+    }
+    refreshShelf();
+    window.addEventListener("collections:changed", refreshShelf);
+    return () => window.removeEventListener("collections:changed", refreshShelf);
   }, []);
 
+  // Organize records into shelves (up to 36 per shelf bar)
+  const SHELF_CAPACITY = 36;
+  const shelves: Collection[][] = [];
+  for (let i = 0; i < collections.length; i += SHELF_CAPACITY) {
+    shelves.push(collections.slice(i, i + SHELF_CAPACITY));
+  }
+  if (shelves.length === 0) {
+    shelves.push([]);
+  }
+
   return (
-    <div className="spine-shelf-container">
-      <div className="spine-shelf-bar">
-        {collections.map(col => (
-          <SpineRecord key={col.id} collection={col} onInspect={onInspect} />
-        ))}
-      </div>
+    <div className={`spine-shelf-container dj-theme-${theme}`}>
+      {shelves.map((shelfRecords, idx) => (
+        <div key={idx} className={`spine-shelf-bar dj-theme-${theme}`}>
+          {shelfRecords.map(col => (
+            <SpineRecord key={col.id} collection={col} onInspect={onInspect} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }
@@ -35,7 +59,10 @@ function SpineRecord({ collection, onInspect }: { collection: Collection, onInsp
         }
       }}
     >
-      <div className="spine-record-card">
+      <div 
+        className="spine-record-card"
+        style={track.imageUrl ? ({ '--album-art': `url("${track.imageUrl.replace(/"/g, '\\"')}")` } as React.CSSProperties) : undefined}
+      >
         <span className="spine-record-depth" />
         <span className="spine-record-edge spine-edge-top" />
         <span className="spine-record-edge spine-edge-left" />

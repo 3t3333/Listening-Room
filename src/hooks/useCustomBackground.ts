@@ -10,22 +10,41 @@ interface StoredBackground {
   name: string;
 }
 
+export type BackgroundFitMode = "cover" | "contain";
+
 interface BackgroundSettings {
   opacity: number;
   adaptColors: boolean;
+  positionX?: number; // 0 to 100, default 50
+  positionY?: number; // 0 to 100, default 50
+  fit?: BackgroundFitMode; // default "cover"
+  zoom?: number; // 100 to 200, default 100
 }
 
 export interface CustomBackgroundState extends BackgroundSettings {
   imageUrl: string | null;
   fileName: string | null;
   loading: boolean;
+  positionX: number;
+  positionY: number;
+  fit: BackgroundFitMode;
+  zoom: number;
   setImage: (file: File) => Promise<void>;
   removeImage: () => Promise<void>;
   setOpacity: (opacity: number) => void;
   setAdaptColors: (adaptColors: boolean) => void;
+  setPositionY: (y: number) => void;
+  setFraming: (framing: { positionX?: number; positionY?: number; fit?: BackgroundFitMode; zoom?: number }) => void;
 }
 
-const defaultSettings: BackgroundSettings = { opacity: 0.45, adaptColors: false };
+const defaultSettings: BackgroundSettings = {
+  opacity: 0.45,
+  adaptColors: false,
+  positionX: 50,
+  positionY: 50,
+  fit: "cover",
+  zoom: 100,
+};
 
 export function useCustomBackground(): CustomBackgroundState {
   const [settings, setSettings] = useState(readSettings);
@@ -75,8 +94,17 @@ export function useCustomBackground(): CustomBackgroundState {
     localStorage.setItem(settingsKey, JSON.stringify(next));
   }
 
+  const positionX = settings.positionX ?? defaultSettings.positionX!;
+  const positionY = settings.positionY ?? defaultSettings.positionY!;
+  const fit = settings.fit ?? defaultSettings.fit!;
+  const zoom = settings.zoom ?? defaultSettings.zoom!;
+
   return {
     ...settings,
+    positionX,
+    positionY,
+    fit,
+    zoom,
     imageUrl,
     fileName: image?.name ?? null,
     loading,
@@ -84,6 +112,14 @@ export function useCustomBackground(): CustomBackgroundState {
     removeImage,
     setOpacity: (opacity) => updateSettings({ ...settings, opacity: Math.max(0, Math.min(1, opacity)) }),
     setAdaptColors: (adaptColors) => updateSettings({ ...settings, adaptColors }),
+    setPositionY: (y) => updateSettings({ ...settings, positionY: Math.max(0, Math.min(100, y)) }),
+    setFraming: (framing) => updateSettings({
+      ...settings,
+      positionX: framing.positionX !== undefined ? Math.max(0, Math.min(100, framing.positionX)) : positionX,
+      positionY: framing.positionY !== undefined ? Math.max(0, Math.min(100, framing.positionY)) : positionY,
+      fit: framing.fit ?? fit,
+      zoom: framing.zoom !== undefined ? Math.max(100, Math.min(200, framing.zoom)) : zoom,
+    }),
   };
 }
 
@@ -93,6 +129,10 @@ function readSettings(): BackgroundSettings {
     return {
       opacity: typeof stored?.opacity === "number" ? Math.max(0, Math.min(1, stored.opacity)) : defaultSettings.opacity,
       adaptColors: typeof stored?.adaptColors === "boolean" ? stored.adaptColors : defaultSettings.adaptColors,
+      positionX: typeof stored?.positionX === "number" ? Math.max(0, Math.min(100, stored.positionX)) : defaultSettings.positionX,
+      positionY: typeof stored?.positionY === "number" ? Math.max(0, Math.min(100, stored.positionY)) : defaultSettings.positionY,
+      fit: stored?.fit === "contain" ? "contain" : "cover",
+      zoom: typeof stored?.zoom === "number" ? Math.max(100, Math.min(200, stored.zoom)) : defaultSettings.zoom,
     };
   } catch {
     return defaultSettings;

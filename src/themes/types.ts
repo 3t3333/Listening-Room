@@ -6,6 +6,10 @@ export interface BackgroundPresentation {
   opacity: number;
   adaptColors: boolean;
   palette: ArtworkPalette;
+  positionX?: number;
+  positionY?: number;
+  fit?: "cover" | "contain";
+  zoom?: number;
 }
 
 export interface ThemeProps {

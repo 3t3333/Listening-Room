@@ -7,10 +7,15 @@ import { ScrollingTitle } from "../components/ScrollingTitle";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
 import { VinylRecord } from "../components/VinylRecord";
 import { useArtworkPalette } from "../hooks/useArtworkColor";
+import { findMatchingCollection } from "../hooks/useActiveCustomization";
+import { getCollections } from "../lib/collections";
 import type { ThemeProps } from "./types";
 
 export function MidnightMixTheme({ playback, background, onToggle, onPrevious, onNext }: ThemeProps) {
   const track = playback.current;
+  const collections = getCollections();
+  const activeCollection = track ? findMatchingCollection(track, collections) : null;
+  const vinylColor = activeCollection?.customization?.vinylColor;
   const artworkPalette = useArtworkPalette(track?.imageUrl);
   const palette = background.adaptColors && background.imageUrl ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
@@ -21,7 +26,14 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
 
   return (
     <section className="theme-scene midnight-theme" style={style}>
-      <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
+      <CustomBackground 
+        imageUrl={background.imageUrl} 
+        opacity={background.opacity} 
+        positionX={background.positionX} 
+        positionY={background.positionY} 
+        fit={background.fit} 
+        zoom={background.zoom} 
+      />
       <div className="midnight-ambient" />
       <AudioVisualizer />
 
@@ -34,7 +46,7 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
             <span className="midnight-sleeve-shine" />
           </div>
         </TrackDetailsDialog>
-        <VinylRecord track={track} isPlaying={playback.isPlaying} />
+        <VinylRecord track={track} isPlaying={playback.isPlaying} vinylColor={vinylColor} />
       </div>
 
       <div className="midnight-meta">

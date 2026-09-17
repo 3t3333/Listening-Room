@@ -6,6 +6,7 @@ import { InteractiveSleeve } from "./InteractiveSleeve";
 import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 import { mp3Player } from "../lib/mp3Player";
+import { getVinylColorStyle } from "../lib/vinylColors";
 
 interface Props {
   record: Collection;
@@ -27,7 +28,18 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
   }, [side]);
   
   useEffect(() => {
-    containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const el = containerRef.current;
+    if (!el) return;
+    const scrollParent = el.closest(".dj-page-container") as HTMLElement | null;
+    if (scrollParent) {
+      const parentRect = scrollParent.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const targetScrollTop = scrollParent.scrollTop + (elRect.top - parentRect.top) - (parentRect.height - elRect.height) / 2;
+      scrollParent.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
+      });
+    }
   }, [record.id]);
   
   const tracks = record.tracks || [];
@@ -84,9 +96,6 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
   }
 
   function handlePlay(track: any) {
-    if (record.format === "mp3") {
-      void mp3Player.play(track, tracks);
-    }
     onPlayTrack(track, record);
   }
 
@@ -186,7 +195,10 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
                  }
                }}
              >
-               <div className={`record-vinyl-disc ${side === "side-b" ? "is-flipped" : ""}`}>
+               <div 
+                 className={`record-vinyl-disc ${side === "side-b" ? "is-flipped" : ""}`}
+                 style={getVinylColorStyle(record.customization?.vinylColor)}
+               >
                  <div className="record-vinyl-grooves record-vinyl-grooves-a"></div>
                  <div className="record-vinyl-grooves record-vinyl-grooves-b"></div>
                  <div 

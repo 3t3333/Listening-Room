@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Listening Room",
-  "version": "0.4.8",
+  "version": "0.4.10",
   "identifier": "com.listeningroom.player",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -15,7 +15,7 @@
         "title": "Listening Room",
         "width": 1280,
         "height": 820,
-        "minWidth": 920,
+        "minWidth": 420,
         "minHeight": 380,
         "resizable": true
       }

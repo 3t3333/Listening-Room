@@ -1,5 +1,18 @@
 import type { Track } from "./player";
 import { mapTrackArtwork, unmapTrackArtwork } from "./customArtwork";
+import { getArtworkUrl } from "./mp3Storage";
+
+export interface CollectionCustomization {
+  hasCustomBackground?: boolean;
+  backgroundOpacity?: number;             // 0 to 1, default 0.45
+  backgroundPositionX?: number;           // 0 to 100, default 50
+  backgroundPositionY?: number;           // 0 to 100, default 50
+  backgroundFit?: "cover" | "contain";    // default "cover"
+  backgroundZoom?: number;                // 100 to 200, default 100
+  equalizerColorMode?: "adapt" | "custom"; // "adapt" matches background/artwork
+  equalizerCustomColor?: string | null;   // hex string e.g. "#00d26a"
+  vinylColor?: string | null;             // hex string e.g. "#c01525" or null for default black
+}
 
 export interface Collection {
   id: string;
@@ -11,6 +24,7 @@ export interface Collection {
   year?: number | null;
   tracks: Track[];
   updatedAt: string;
+  customization?: CollectionCustomization;
 }
 
 const storageKey = "listening-room-collections";
@@ -38,10 +52,37 @@ export function getCollections(): Collection[] {
     tracks: [],
     updatedAt: now,
   };
-  return [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)].map(c => ({
+  const result = [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)].map(c => ({
     ...c,
     tracks: c.tracks.map(t => mapTrackArtwork(t) as Track)
   }));
+
+  // Self-heal stale blob: artwork URLs for MP3 albums by resolving from IndexedDB
+  const mp3WithStaleBlobs = result.filter(
+    (c) => (c.format === "mp3" || c.id.startsWith("rec-mp3-")) && c.tracks.some((t) => t.imageUrl?.startsWith("blob:"))
+  );
+  if (mp3WithStaleBlobs.length > 0) {
+    setTimeout(async () => {
+      let changed = false;
+      for (const col of mp3WithStaleBlobs) {
+        const artUrl = await getArtworkUrl(`art-${col.id}`);
+        if (artUrl) {
+          for (const t of col.tracks) {
+            if (t.imageUrl?.startsWith("blob:")) {
+              t.imageUrl = artUrl;
+              t.originalImageUrl = artUrl;
+              changed = true;
+            }
+          }
+        }
+      }
+      if (changed) {
+        saveCollections(result);
+      }
+    }, 100);
+  }
+
+  return result;
 }
 
 export function addTrackToCollection(track: Track, collectionId = defaultCollectionId) {
@@ -140,6 +181,19 @@ export function deleteCollection(collectionId: string) {
   saveCollections(collections);
   window.dispatchEvent(new CustomEvent("collections:changed"));
   return true;
+}
+
+export function updateCollectionCustomization(collectionId: string, customization: CollectionCustomization) {
+  const collections = getCollections();
+  const index = collections.findIndex((c) => c.id === collectionId);
+  if (index !== -1) {
+    collections[index] = {
+      ...collections[index],
+      customization,
+      updatedAt: new Date().toISOString(),
+    };
+    saveCollections(collections);
+  }
 }
 
 function trackKey(track: Track) {

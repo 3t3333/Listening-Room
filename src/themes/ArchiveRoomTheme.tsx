@@ -11,6 +11,7 @@ import { AddToCollectionPicker } from "../components/AddToCollectionPicker";
 import { RecordPresentation } from "../components/RecordPresentation";
 import { Mp3RecordCreator } from "../components/Mp3RecordCreator";
 import { useMp3Settings } from "../hooks/useMp3Settings";
+import { getVinylColorStyle } from "../lib/vinylColors";
 
 interface Props extends ThemeProps {
   onPlayTrack: (track: Track, collection?: Track[]) => Promise<void>;
@@ -166,7 +167,14 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
 
   return (
     <section className="theme-scene archive-theme" style={style} ref={themeRoot}>
-      <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
+      <CustomBackground 
+        imageUrl={background.imageUrl} 
+        opacity={background.opacity} 
+        positionX={background.positionX} 
+        positionY={background.positionY} 
+        fit={background.fit} 
+        zoom={background.zoom} 
+      />
       <div className="archive-ambient" />
       <div className="archive-room">
         {isCreatingMp3 ? (
@@ -317,7 +325,7 @@ function CollectionEntrance({ collection, onOpen }: { collection: Collection; on
           <div className="record-preview-sleeve">
             {coverUrl ? <img src={coverUrl} alt="" loading="lazy" /> : <Disc3 />}
           </div>
-          <div className="record-preview-disc">
+          <div className="record-preview-disc" style={getVinylColorStyle(collection.customization?.vinylColor)}>
             <div className="record-preview-disc-center" style={coverUrl ? { backgroundImage: `url(${coverUrl})` } : {}}></div>
           </div>
         </div>

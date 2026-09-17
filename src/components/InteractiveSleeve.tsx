@@ -53,7 +53,13 @@ export function InteractiveSleeve({ track, className }: { track: Track | null; c
         <span className="track-artwork-edge track-artwork-edge-left" />
         <span className="track-artwork-edge track-artwork-edge-right" />
         <span className="track-artwork-edge track-artwork-edge-bottom" />
-        {track?.imageUrl ? <img src={track.imageUrl} alt={`${track.name} cover`} decoding="async" draggable={false} /> : <Disc3 />}
+        {track?.imageUrl ? (
+          <img src={track.imageUrl} alt={`${track.name} cover`} decoding="async" draggable={false} />
+        ) : (
+          <div className="track-artwork-fallback">
+            <Disc3 />
+          </div>
+        )}
         <span className="track-artwork-plastic" />
         <span className="track-artwork-shine" />
       </div>

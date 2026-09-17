@@ -46,11 +46,20 @@ button { font: inherit; }
 .artwork-trigger:disabled { cursor: default; }
 .artwork-trigger:focus-visible { outline: 2px solid #ffffffbd; outline-offset: 6px; }
 
-.theme-transition { position: absolute; inset: 68px 0 0; overflow: hidden; animation: theme-in .28s ease-out; transition: inset .24s ease; }
+.theme-transition { position: absolute; inset: 68px 0 0; overflow: hidden; overscroll-behavior: none; animation: theme-in .28s ease-out; transition: inset .24s ease; }
 .chrome-hidden .topbar { transform: translateY(-100%); opacity: 0; pointer-events: none; }
 .chrome-hidden .theme-transition { inset: 0; }
 .theme-scene { position: absolute; inset: 0; overflow: hidden; }
-.custom-background { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; }
+.custom-background-container { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; overflow: hidden; pointer-events: none; user-select: none; }
+.custom-background { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+@keyframes custom-bg-fade-in {
+  from { opacity: 0; }
+  to { opacity: var(--to-opacity, 1); }
+}
+@keyframes custom-bg-fade-out {
+  from { opacity: var(--from-opacity, 1); }
+  to { opacity: 0; }
+}
 @keyframes theme-in { from { opacity: 0; transform: scale(1.008); } }
 
 
@@ -153,13 +162,47 @@ button { font: inherit; }
 .midnight-sleeve-plastic::after { top: 4%; right: 3px; bottom: 5%; width: 1px; background: linear-gradient(180deg, transparent, #ffffff79 16%, #ffffff20 75%, transparent); }
 .midnight-sleeve-shine { position: absolute; z-index: 4; inset: -1px; pointer-events: none; background: linear-gradient(118deg, transparent 30%, #ffffff1a 44%, transparent 57%); mix-blend-mode: screen; }
 .front-vinyl { width: var(--vinyl-size); height: var(--vinyl-size); position: relative; margin-top: clamp(14px, 2vh, 24px); border-radius: 50%; background: radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%); box-shadow: 0 24px 45px #000c, inset 0 0 0 2px #ffffff0e; }
-.front-vinyl::after { content: ""; position: absolute; inset: 4%; border-radius: 50%; background: conic-gradient(from 30deg, transparent, #ffffff11, transparent 15%, transparent 49%, #ffffff0c, transparent 63%); }
-.front-vinyl-grooves { position: absolute; inset: 7%; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 3px, #ffffff0b 3.5px 4px); }
+.front-vinyl[style*="--vinyl-color"] {
+  background: var(--vinyl-bg, radial-gradient(circle, var(--vinyl-color-light) 0 2.7%, var(--vinyl-color-dark) 3.2% 20%, var(--vinyl-color-light) 20.4% 20.8%, var(--vinyl-color) 21.2% 100%)) !important;
+  box-shadow: 0 24px 45px #000c, inset 0 0 0 2px rgba(255, 255, 255, 0.15) !important;
+}
+.front-vinyl[style*="--vinyl-color"] .front-vinyl-grooves {
+  background: repeating-radial-gradient(circle, transparent 0 3px, rgba(255, 255, 255, 0.12) 3.5px 4px);
+}
+.front-vinyl::after { content: ""; position: absolute; inset: 4%; border-radius: 50%; background: conic-gradient(from 30deg, transparent, #ffffff11, transparent 15%, transparent 49%, #ffffff0c, transparent 63%); pointer-events: none; }
+.front-vinyl-grooves { position: absolute; inset: 7%; border-radius: 50%; background: repeating-radial-gradient(circle, transparent 0 3px, #ffffff0b 3.5px 4px); pointer-events: none; }
 .front-vinyl-label { position: absolute; z-index: 2; width: 32%; height: 32%; left: 34%; top: 34%; border-radius: 50%; overflow: hidden; display: grid; place-items: center; color: #4b4b4b; background: rgb(var(--ambient-rgb)); }
 .front-vinyl-label img { width: 100%; height: 100%; object-fit: cover; }
 .front-vinyl-label svg { width: 40%; height: 40%; }
 .front-vinyl > i { position: absolute; z-index: 3; width: 2.8%; height: 2.8%; left: 48.6%; top: 48.6%; border-radius: 50%; background: #d8d8d3; box-shadow: 0 0 0 2px #111; }
 .front-vinyl.is-playing { animation: spin 4.2s linear infinite; }
+
+/* Page 2 Classic Grooves Mode */
+.vinyl-style-classic .front-vinyl {
+  background: #111 !important;
+  box-shadow: 0 24px 45px #000c, inset 0 0 0 10px #0a0a0a !important;
+}
+.vinyl-style-classic .front-vinyl[style*="--vinyl-color"] {
+  background: var(--vinyl-color, #111) !important;
+  box-shadow: 0 24px 45px #000c, inset 0 0 0 6px rgba(0, 0, 0, 0.35) !important;
+}
+.vinyl-style-classic .front-vinyl::after {
+  display: none !important;
+}
+.vinyl-style-classic .front-vinyl-grooves {
+  background: repeating-radial-gradient(#111 0, #111 4px, #1a1a1a 5px, #111 6px) !important;
+  opacity: 0.5 !important;
+}
+.vinyl-style-classic .front-vinyl[style*="--vinyl-color"] .front-vinyl-grooves {
+  background: repeating-radial-gradient(
+    transparent 0,
+    transparent 3.5px,
+    rgba(255, 255, 255, 0.08) 4.5px,
+    rgba(0, 0, 0, 0.22) 5.5px,
+    transparent 6px
+  ) !important;
+  opacity: 0.85 !important;
+}
 .midnight-meta { position: absolute; z-index: 4; left: 50%; bottom: clamp(40px, 5.5%, 58px); width: min(560px, calc(100vw - 48px)); transform: translateX(-50%); display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 28px; }
 .midnight-meta > div:first-child { min-width: 0; text-align: left; }
 .midnight-meta h1 { margin: 0; font-size: clamp(22px, 2.5vw, 36px); line-height: 1.05; letter-spacing: -.035em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -178,6 +221,8 @@ button { font: inherit; }
 .track-artwork-interaction:hover .track-artwork-card { transition-duration: 40ms; }
 .track-artwork-card img { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; object-fit: cover; box-shadow: 0 34px 62px #000c, 0 5px 12px #000a; transform: translateZ(6px); backface-visibility: hidden; }
 .track-artwork-card > svg { position: absolute; z-index: 2; inset: 35%; width: 30%; height: 30%; color: #777; transform: translateZ(6px); backface-visibility: hidden; }
+.track-artwork-fallback { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; background: #151518; display: flex; align-items: center; justify-content: center; color: #555; transform: translateZ(6px); backface-visibility: hidden; border-radius: 2px; box-shadow: 0 34px 62px #000c, 0 5px 12px #000a; }
+.track-artwork-fallback > svg { width: 32%; height: 32%; }
 .track-artwork-depth { position: absolute; z-index: 0; inset: 0; background: linear-gradient(135deg, #403f3c, #171716 58%, #050505); box-shadow: 13px 23px 43px #000c; transform: translateZ(-6px); backface-visibility: hidden; }
 .track-artwork-edge { position: absolute; z-index: 1; display: block; background: linear-gradient(90deg, #ddd8ca, #57544d 45%, #151515); pointer-events: none; }
 .track-artwork-edge-top { left: 0; top: -6px; width: 100%; height: 12px; transform: rotateX(90deg); }
@@ -962,6 +1007,41 @@ button { font: inherit; }
   flex-shrink: 0;
 }
 
+.dj-theme-toast {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(18, 20, 26, 0.88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  animation: djToastFade 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes djToastFade {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
 .dj-top-meta {
   align-self: flex-start;
   margin-left: 40px;
@@ -1051,6 +1131,62 @@ button { font: inherit; }
   border-radius: 6px;
   box-shadow: inset 0 0 20px #000, 0 0 0 2px #333, 0 10px 30px rgba(0,0,0,0.8);
   padding: 6px;
+  transition: all 0.3s ease;
+}
+
+/* Glass Variations for DJ Desk, Console, and Stands */
+.dj-desk.dj-theme-glass-clear {
+  background: rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.35), inset 0 2px 8px rgba(255, 255, 255, 0.7) !important;
+}
+
+.dj-desk.dj-theme-glass-smoked {
+  background: rgba(14, 16, 22, 0.58) !important;
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8), inset 0 2px 8px rgba(255, 255, 255, 0.18) !important;
+}
+
+.dj-desk.dj-theme-glass-clear .dj-center-console,
+.dj-theme-glass-clear .dj-center-console {
+  background: rgba(255, 255, 255, 0.22) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.3), 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dj-desk.dj-theme-glass-smoked .dj-center-console,
+.dj-theme-glass-smoked .dj-center-console {
+  background: rgba(10, 12, 16, 0.65) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dj-long-stand.dj-theme-glass-clear {
+  background: rgba(255, 255, 255, 0.24) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+}
+.dj-long-stand.dj-theme-glass-clear::before {
+  background: rgba(255, 255, 255, 0.18) !important;
+  filter: blur(8px);
+}
+
+.dj-long-stand.dj-theme-glass-smoked {
+  background: rgba(18, 20, 26, 0.65) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 0 25px 55px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
 }
 
 /* Turntable */
@@ -1094,6 +1230,129 @@ button { font: inherit; }
   box-shadow: inset 0 0 25px rgba(0,0,0,0.8);
 }
 
+/* Turntable Themes (Silver, Dark, Frosted Clear Glass, Smoked Obsidian Glass) */
+.turntable.theme-light {
+  background: linear-gradient(135deg, #e0e0e0 0%, #b0b0b0 50%, #909090 100%);
+  border-color: #888;
+}
+
+.turntable.theme-dark {
+  background: linear-gradient(135deg, #333 0%, #1a1a1a 50%, #111 100%);
+  border-color: #444;
+}
+
+/* Version 1: Clear Frosted Glass / Ice Acrylic */
+.turntable.theme-glass-clear {
+  background: rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(24px) saturate(1.4) brightness(1.1);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4) brightness(1.1);
+  border: 1.5px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow: 
+    inset 0 2px 6px rgba(255, 255, 255, 0.85),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.15),
+    0 18px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+.turntable.theme-glass-clear .turntable-chassis {
+  background: rgba(255, 255, 255, 0.11) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    inset 0 0 20px rgba(255, 255, 255, 0.25), 
+    inset 0 2px 6px rgba(255, 255, 255, 0.35) !important;
+}
+
+.turntable.theme-glass-clear .turntable-platter-area {
+  background: radial-gradient(circle, rgba(35, 36, 42, 0.92) 30%, rgba(18, 20, 24, 0.96) 75%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 0 0 1.5px rgba(255, 255, 255, 0.25);
+}
+
+.turntable.theme-glass-clear .pitch-slider {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.turntable.theme-glass-clear .pitch-fader {
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+
+.turntable.theme-glass-clear .start-stop-button {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), inset 0 1px 1px #fff;
+}
+
+.turntable.theme-glass-clear .power-dial {
+  background: rgba(30, 30, 35, 0.85);
+  border-color: rgba(255, 255, 255, 0.6);
+}
+
+.turntable.theme-glass-clear .tonearm-base {
+  background: radial-gradient(circle, #ffffff 15%, #d4d4d8 55%, #a1a1aa 100%);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.turntable.theme-glass-clear .tonearm-counterweight {
+  background: linear-gradient(135deg, #e4e4e7, #71717a);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+}
+
+/* Version 2: Smoked Obsidian Glass */
+.turntable.theme-glass-smoked {
+  background: rgba(18, 20, 26, 0.48) !important;
+  backdrop-filter: blur(24px) saturate(1.2) brightness(0.95);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2) brightness(0.95);
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 0 2px 4px rgba(255, 255, 255, 0.25),
+    inset 0 -2px 6px rgba(0, 0, 0, 0.7),
+    0 22px 50px rgba(0, 0, 0, 0.8) !important;
+}
+
+.turntable.theme-glass-smoked .turntable-chassis {
+  background: rgba(12, 14, 18, 0.38) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    inset 0 0 25px rgba(0, 0, 0, 0.8), 
+    inset 0 1px 3px rgba(255, 255, 255, 0.1) !important;
+}
+
+.turntable.theme-glass-smoked .turntable-platter-area {
+  background: radial-gradient(circle, rgba(20, 22, 28, 0.95) 30%, rgba(8, 9, 12, 0.98) 75%);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.85), inset 0 0 0 1.5px rgba(255, 255, 255, 0.1);
+}
+
+.turntable.theme-glass-smoked .pitch-slider {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.turntable.theme-glass-smoked .pitch-fader {
+  background: #d4d4d8;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.6);
+}
+
+.turntable.theme-glass-smoked .start-stop-button {
+  background: rgba(45, 48, 56, 0.85);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+}
+
+.turntable.theme-glass-smoked .power-dial {
+  background: rgba(15, 16, 20, 0.9);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.turntable.theme-glass-smoked .tonearm-base {
+  background: radial-gradient(circle, #52525b 20%, #27272a 70%, #18181b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.turntable.theme-glass-smoked .tonearm-counterweight {
+  background: linear-gradient(135deg, #3f3f46, #18181b);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .turntable-platter-area {
   position: absolute;
   top: 20px;
@@ -1133,12 +1392,12 @@ button { font: inherit; }
   width: 210px;
   height: 210px;
   border-radius: 50%;
-  background: #111;
+  background: radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%);
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.8);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 0 0 1.5px rgba(255, 255, 255, 0.08);
 }
 .vinyl-record.spinning {
   animation: spin 1.8s linear infinite;
@@ -1149,20 +1408,48 @@ button { font: inherit; }
   to { transform: rotate(360deg); }
 }
 
+.vinyl-record[style*="--vinyl-color"] {
+  background: var(--vinyl-bg, var(--vinyl-color, #111)) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7), inset 0 0 0 1.5px rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Realistic Grooves (Page 2 Style) */
 .vinyl-grooves {
   position: absolute;
-  inset: 5px;
+  inset: 4px;
   border-radius: 50%;
-  border: 1px solid #222;
-  box-shadow: 
-    inset 0 0 0 2px #111, inset 0 0 0 3px #222,
-    inset 0 0 0 8px #111, inset 0 0 0 9px #2a2a2a,
-    inset 0 0 0 14px #111, inset 0 0 0 15px #222,
-    inset 0 0 0 20px #111, inset 0 0 0 21px #2a2a2a,
-    inset 0 0 0 26px #111, inset 0 0 0 27px #222,
-    inset 0 0 0 32px #111, inset 0 0 0 33px #2a2a2a,
-    inset 0 0 0 38px #111, inset 0 0 0 39px #222;
-  opacity: 0.5;
+  border: none;
+  background: repeating-radial-gradient(circle, transparent 0 2.5px, rgba(255, 255, 255, 0.08) 3px 3.5px);
+  box-shadow: none;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.vinyl-record[style*="--vinyl-color"] .vinyl-grooves {
+  background: repeating-radial-gradient(circle, transparent 0 2.5px, rgba(255, 255, 255, 0.14) 3px 3.5px);
+  opacity: 0.95;
+}
+
+/* Specular Conic Sheen for DJ Turntable Record */
+.vinyl-shine {
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 30deg,
+    transparent,
+    rgba(255, 255, 255, 0.12) 12%,
+    rgba(255, 255, 255, 0.18) 16%,
+    rgba(255, 255, 255, 0.07) 21%,
+    transparent 29%,
+    transparent 44%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.16) 57%,
+    rgba(255, 255, 255, 0.05) 64%,
+    transparent 72%
+  );
+  pointer-events: none;
+  z-index: 5;
 }
 
 .vinyl-label {
@@ -1183,58 +1470,151 @@ button { font: inherit; }
   object-fit: cover;
 }
 
+/* Spindle hole & grommet */
+.spindle-hole,
 .vinyl-hole {
   position: absolute;
-  width: 6px;
-  height: 6px;
-  background: #d8d8d8;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 7px;
+  height: 7px;
+  background: #d8d8d3;
   border-radius: 50%;
-  border: 1px solid #999;
-  z-index: 5;
-  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5);
+  box-shadow: 0 0 0 1.5px #111;
+  z-index: 6;
+}
+
+/* Classic Mode Overrides for Turntable Vinyl */
+.vinyl-style-classic .vinyl-record {
+  background: #111 !important;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.03) !important;
+}
+.vinyl-style-classic .vinyl-record[style*="--vinyl-color"] {
+  background: var(--vinyl-color, #111) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), inset 0 0 0 4px rgba(0, 0, 0, 0.3) !important;
+}
+.vinyl-style-classic .vinyl-record .vinyl-grooves {
+  inset: 5px;
+  background: none !important;
+  border: 1px solid #222 !important;
+  box-shadow: 
+    inset 0 0 0 2px #111, inset 0 0 0 3px #222,
+    inset 0 0 0 8px #111, inset 0 0 0 9px #2a2a2a,
+    inset 0 0 0 14px #111, inset 0 0 0 15px #222,
+    inset 0 0 0 20px #111, inset 0 0 0 21px #2a2a2a,
+    inset 0 0 0 26px #111, inset 0 0 0 27px #222,
+    inset 0 0 0 32px #111, inset 0 0 0 33px #2a2a2a,
+    inset 0 0 0 38px #111, inset 0 0 0 39px #222 !important;
+  opacity: 0.5 !important;
+}
+.vinyl-style-classic .vinyl-record[style*="--vinyl-color"] .vinyl-grooves {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  box-shadow: 
+    inset 0 0 0 2px rgba(0,0,0,0.18), inset 0 0 0 3px rgba(255,255,255,0.08),
+    inset 0 0 0 8px rgba(0,0,0,0.18), inset 0 0 0 9px rgba(255,255,255,0.08),
+    inset 0 0 0 14px rgba(0,0,0,0.18), inset 0 0 0 15px rgba(255,255,255,0.08),
+    inset 0 0 0 20px rgba(0,0,0,0.18), inset 0 0 0 21px rgba(255,255,255,0.08),
+    inset 0 0 0 26px rgba(0,0,0,0.18), inset 0 0 0 27px rgba(255,255,255,0.08),
+    inset 0 0 0 32px rgba(0,0,0,0.18), inset 0 0 0 33px rgba(255,255,255,0.08),
+    inset 0 0 0 38px rgba(0,0,0,0.18), inset 0 0 0 39px rgba(255,255,255,0.08) !important;
+  opacity: 0.8 !important;
+}
+.vinyl-style-classic .vinyl-shine {
+  display: none !important;
+}
+.vinyl-style-classic .spindle-hole,
+.vinyl-style-classic .vinyl-hole {
+  background: #d8d8d8 !important;
+  border: 1px solid #999 !important;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.5) !important;
 }
 
 /* Tonearm */
 .tonearm-assembly {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 80px;
-  height: 180px;
+  top: 12px;
+  right: 14px;
+  width: 90px;
+  height: 220px;
+  pointer-events: none;
+  z-index: 8;
 }
 
 .tonearm-base {
   position: absolute;
   top: 10px;
-  right: 15px;
-  width: 50px;
-  height: 50px;
+  right: 14px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  background: radial-gradient(circle, #ddd 20%, #888 80%);
-  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-  z-index: 8;
+  background: radial-gradient(circle, #e4e4e7 15%, #a1a1aa 55%, #71717a 80%, #3f3f46 100%);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.5), 
+    inset 0 0 0 2px rgba(255, 255, 255, 0.4), 
+    inset 0 0 0 6px rgba(0, 0, 0, 0.35), 
+    inset 0 0 0 8px rgba(255, 255, 255, 0.15);
+  z-index: 7;
+  border: 1px solid rgba(0, 0, 0, 0.3);
 }
 
-.tonearm-counterweight {
+.turntable.is-dark .tonearm-base {
+  background: radial-gradient(circle, #3f3f46 15%, #27272a 55%, #18181b 80%, #09090b 100%);
+  box-shadow: 
+    0 4px 12px rgba(0, 0, 0, 0.8), 
+    inset 0 0 0 2px rgba(255, 255, 255, 0.1), 
+    inset 0 0 0 6px rgba(0, 0, 0, 0.6), 
+    inset 0 0 0 8px rgba(255, 255, 255, 0.05);
+}
+
+.tonearm-rest-post {
   position: absolute;
-  top: -5px;
-  right: 25px;
-  width: 30px;
-  height: 20px;
-  background: #666;
-  border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(255,255,255,0.5);
-  z-index: 9;
+  top: 172px;
+  right: 20px;
+  width: 14px;
+  height: 16px;
+  background: linear-gradient(180deg, #52525b, #27272a);
+  border-radius: 2px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+  z-index: 7;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.tonearm-rest-clip {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  right: 2px;
+  height: 4px;
+  background: #18181b;
+  border-radius: 1px;
+}
+
+.tonearm-cue-lever {
+  position: absolute;
+  top: 50px;
+  right: 50px;
+  width: 5px;
+  height: 16px;
+  background: linear-gradient(180deg, #e4e4e7, #71717a);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 7;
+}
+
+.turntable.is-dark .tonearm-cue-lever,
+.turntable.theme-glass-smoked .tonearm-cue-lever {
+  background: linear-gradient(180deg, #52525b, #18181b);
 }
 
 .tonearm-arm {
   position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 100px;
-  height: 200px;
-  transform-origin: 70px 20px;
-  transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50px 36px;
+  transition: transform 0.65s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 10;
 }
 
@@ -1249,7 +1629,7 @@ button { font: inherit; }
 .tonearm-svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(4px 4px 5px rgba(0,0,0,0.5));
+  overflow: visible;
 }
 
 /* Turntable Controls */
@@ -1630,25 +2010,90 @@ button { font: inherit; }
   position: absolute;
   inset: 2.5%;
   border-radius: 50%;
-  background: #111;
-  box-shadow: inset 0 0 0 10px #0a0a0a, 0 10px 30px rgba(0,0,0,0.5);
+  background: radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.3, 1, 0.3, 1);
+}
+
+.record-vinyl-disc[style*="--vinyl-color"] {
+  background: var(--vinyl-bg, var(--vinyl-color, #111)) !important;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6), inset 0 0 0 2px rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Side A Specular Sheen */
+.record-vinyl-disc::after {
+  content: "";
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 30deg,
+    transparent,
+    rgba(255, 255, 255, 0.12) 12%,
+    rgba(255, 255, 255, 0.18) 16%,
+    rgba(255, 255, 255, 0.07) 21%,
+    transparent 29%,
+    transparent 44%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.16) 57%,
+    rgba(255, 255, 255, 0.05) 64%,
+    transparent 72%
+  );
+  pointer-events: none;
+  z-index: 2;
+  transform: translateZ(0.2px);
+  backface-visibility: hidden;
+}
+
+/* Side B Specular Sheen (visible when flipped) */
+.record-vinyl-disc::before {
+  content: "";
+  position: absolute;
+  inset: 3%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 30deg,
+    transparent,
+    rgba(255, 255, 255, 0.12) 12%,
+    rgba(255, 255, 255, 0.18) 16%,
+    rgba(255, 255, 255, 0.07) 21%,
+    transparent 29%,
+    transparent 44%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.16) 57%,
+    rgba(255, 255, 255, 0.05) 64%,
+    transparent 72%
+  );
+  pointer-events: none;
+  z-index: 2;
+  transform: rotateY(180deg) translateZ(0.2px);
+  backface-visibility: hidden;
 }
 
 .record-vinyl-grooves {
   position: absolute;
-  inset: 10px;
+  inset: 8px;
   border-radius: 50%;
   background: repeating-radial-gradient(
-    #111 0,
-    #111 4px,
-    #1a1a1a 5px,
-    #111 6px
+    circle,
+    transparent 0 2.5px,
+    rgba(255, 255, 255, 0.08) 3px 3.5px
   );
-  opacity: 0.5;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.record-vinyl-disc[style*="--vinyl-color"] .record-vinyl-grooves {
+  background: repeating-radial-gradient(
+    circle,
+    transparent 0 2.5px,
+    rgba(255, 255, 255, 0.14) 3px 3.5px
+  );
+  opacity: 0.95;
 }
 
 .record-vinyl-label {
@@ -1666,18 +2111,59 @@ button { font: inherit; }
   color: #111;
   box-shadow: inset 0 0 0 2px #c2bbae;
   backface-visibility: hidden;
+  z-index: 3;
 }
 
 .record-vinyl-label::after {
   content: '';
   position: absolute;
-  width: 12px;
-  height: 12px;
-  background: #111;
+  width: 14px;
+  height: 14px;
+  background: #d8d8d3;
   border-radius: 50%;
+  box-shadow: 0 0 0 2px #111;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
+  z-index: 4;
+}
+
+/* Classic Mode Overrides for Album Record */
+.vinyl-style-classic .record-vinyl-disc {
+  background: #111 !important;
+  box-shadow: inset 0 0 0 10px #0a0a0a, 0 10px 30px rgba(0,0,0,0.5) !important;
+}
+.vinyl-style-classic .record-vinyl-disc[style*="--vinyl-color"] {
+  background: var(--vinyl-color, #111) !important;
+  box-shadow: inset 0 0 0 6px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+}
+.vinyl-style-classic .record-vinyl-disc::before,
+.vinyl-style-classic .record-vinyl-disc::after {
+  display: none !important;
+}
+.vinyl-style-classic .record-vinyl-grooves {
+  inset: 10px;
+  background: repeating-radial-gradient(
+    #111 0,
+    #111 4px,
+    #1a1a1a 5px,
+    #111 6px
+  ) !important;
+  opacity: 0.5 !important;
+}
+.vinyl-style-classic .record-vinyl-disc[style*="--vinyl-color"] .record-vinyl-grooves {
+  background: repeating-radial-gradient(
+    transparent 0,
+    transparent 3.5px,
+    rgba(255, 255, 255, 0.08) 4.5px,
+    rgba(0, 0, 0, 0.22) 5.5px,
+    transparent 6px
+  ) !important;
+  opacity: 0.85 !important;
+}
+.vinyl-style-classic .record-vinyl-label::after {
+  background: #111 !important;
+  box-shadow: none !important;
 }
 
 .record-vinyl-label small {
@@ -1871,15 +2357,20 @@ button { font: inherit; }
   top: 15px;
   width: 166px;
   height: 166px;
-  background: #111;
+  background: radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%);
   border-radius: 50%;
   z-index: 1;
-  box-shadow: inset 0 0 0 4px #0a0a0a, 12px 18px 30px #000b;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.08), 12px 18px 30px #000b;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.4s cubic-bezier(.2,.78,.2,1);
   transform: rotate(0deg);
+}
+
+.record-preview-disc[style*="--vinyl-color"] {
+  background: var(--vinyl-bg, var(--vinyl-color, #111)) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.15), 12px 18px 30px #000b !important;
 }
 
 .record-preview-disc-center {
@@ -1889,6 +2380,21 @@ button { font: inherit; }
   background-size: cover;
   background-position: center;
   background-color: #333;
+  position: relative;
+  z-index: 3;
+}
+
+.record-preview-disc-center::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #d8d8d3;
+  box-shadow: 0 0 0 1px #111;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .archive-entrance.is-record-entrance:hover .record-preview-disc {
@@ -1918,11 +2424,70 @@ button { font: inherit; }
 .record-preview-disc::before {
   content: '';
   position: absolute;
-  inset: 5px;
+  inset: 4px;
   border-radius: 50%;
-  background: repeating-radial-gradient(#111 0, #111 2px, #1a1a1a 3px, #111 4px);
-  opacity: 0.5;
+  background: repeating-radial-gradient(circle, transparent 0 2px, rgba(255, 255, 255, 0.08) 2.5px 3px);
+  opacity: 0.9;
   pointer-events: none;
+}
+
+.record-preview-disc[style*="--vinyl-color"]::before {
+  background: repeating-radial-gradient(circle, transparent 0 2px, rgba(255, 255, 255, 0.14) 2.5px 3px);
+  opacity: 0.95;
+}
+
+.record-preview-disc::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 30deg,
+    transparent,
+    rgba(255, 255, 255, 0.12) 12%,
+    rgba(255, 255, 255, 0.18) 16%,
+    rgba(255, 255, 255, 0.07) 21%,
+    transparent 29%,
+    transparent 44%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.16) 57%,
+    rgba(255, 255, 255, 0.05) 64%,
+    transparent 72%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Classic Mode Overrides for Archive Preview Disc */
+.vinyl-style-classic .record-preview-disc {
+  background: #111 !important;
+  box-shadow: inset 0 0 0 4px #0a0a0a, 12px 18px 30px #000b !important;
+}
+.vinyl-style-classic .record-preview-disc[style*="--vinyl-color"] {
+  background: var(--vinyl-color, #111) !important;
+  box-shadow: inset 0 0 0 4px rgba(0, 0, 0, 0.35), 12px 18px 30px #000b !important;
+}
+.vinyl-style-classic .record-preview-disc::before {
+  inset: 5px;
+  background: repeating-radial-gradient(#111 0, #111 2px, #1a1a1a 3px, #111 4px) !important;
+  opacity: 0.5 !important;
+}
+.vinyl-style-classic .record-preview-disc[style*="--vinyl-color"]::before {
+  background: repeating-radial-gradient(
+    transparent 0,
+    transparent 2px,
+    rgba(255, 255, 255, 0.1) 2.5px,
+    rgba(0, 0, 0, 0.2) 3.5px,
+    transparent 4px
+  ) !important;
+  opacity: 0.85 !important;
+}
+.vinyl-style-classic .record-preview-disc::after {
+  display: none !important;
+}
+.vinyl-style-classic .record-preview-disc-center::after {
+  background: #111 !important;
+  box-shadow: none !important;
 }
 /* DJ Settings Overlay & Modal */
 .dj-settings-button {
@@ -2233,11 +2798,8 @@ button { font: inherit; }
 @keyframes title-scroll { to { transform: translateX(calc(-1 * var(--title-scroll-distance))); } }
 /* Fix shrinking platter bug and remove the platter shadow */
 @keyframes spin-platter {
-  from { transform: translateZ(15px) scale(1.45) rotate(0deg); }
-  to { transform: translateZ(15px) scale(1.45) rotate(360deg); }
-}
-.platter.is-playing {
-  animation: spin-platter 3s linear infinite !important;
+  from { transform: translateZ(15px) scale(1.30) rotate(0deg); }
+  to { transform: translateZ(15px) scale(1.30) rotate(360deg); }
 }
 
 .platter-shadow {
@@ -2258,13 +2820,8 @@ button { font: inherit; }
   transform: translateZ(15px) scale(1.30);
 }
 
-@keyframes spin-platter {
-  from { transform: translateZ(15px) scale(1.30) rotate(0deg); }
-  to { transform: translateZ(15px) scale(1.30) rotate(360deg); }
-}
-
 .scene .deck-wrap .platter.is-playing {
-  animation: spin-platter 3s linear infinite;
+  animation: spin-platter 3s linear infinite !important;
 }
 
 /* Lengthen tonearm */
@@ -2293,77 +2850,239 @@ button { font: inherit; }
   opacity: 0.6;
 }
 /* Spine Shelf (Page 5) */
+.dj-page-background {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
 .spine-shelf-container {
+  /* Default / Non-truncated: 20% scaled down profile */
+  --shelf-record-size: 334px;
+  --shelf-spine-width: 11px;
+  --shelf-bar-height: 23px;
+  --shelf-bar-padding-left: 28px;
+  --shelf-bar-padding-right: 64px; /* Counteracts the 36px rightward 3D card projection */
+  --shelf-gap: 175px;
+  --shelf-record-gap: 2px;
+  --shelf-slide-out: -95px;
+  --shelf-tooltip-bottom: 345px;
+  --shelf-tooltip-art: 58px;
+  --shelf-edge-thickness: 5px;
+  --shelf-edge-half: 2.5px;
+  --shelf-shine-z: 3px;
+  --shelf-card-left: 1.5px;
+  --shelf-shadow-top: -11px;
+  --shelf-shadow-height: 13px;
+  --shelf-shadow-blur: 11px;
+  --shelf-padding-top: 165px;
+  --shelf-padding-bottom: 90px;
+  --shelf-title-size: 15px;
+  --shelf-artist-size: 12px;
+  --shelf-pitch: 6.5deg;
+
+  position: relative;
+  z-index: 2;
   display: flex;
-  justify-content: center;
-  padding: 100px 40px;
-  min-height: 50vh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--shelf-gap);
+  padding: var(--shelf-padding-top) 20px var(--shelf-padding-bottom);
+  min-height: max(70vh, 520px);
+  width: 100%;
+  box-sizing: border-box;
+  transition: backdrop-filter 0.3s ease, background 0.3s ease;
+  overflow: visible;
+}
+
+.dj-page-container.is-horizontal-rig .spine-shelf-container {
+  margin-top: 320px;
+  overflow: visible;
+  justify-content: flex-start;
+}
+
+/* When truncated enough for DJ tables to flip over: 20% scaled down profile */
+.dj-page-container.is-vertical-rig .spine-shelf-container {
+  justify-content: flex-start;
+  --shelf-record-size: 276px;
+  --shelf-spine-width: 9.5px;
+  --shelf-bar-height: 19px;
+  --shelf-bar-padding-left: 22px;
+  --shelf-bar-padding-right: 51px; /* Counteracts the 29px rightward 3D card projection */
+  --shelf-gap: 144px;
+  --shelf-record-gap: 1.5px;
+  --shelf-slide-out: -78px;
+  --shelf-tooltip-bottom: 286px;
+  --shelf-tooltip-art: 48px;
+  --shelf-edge-thickness: 4px;
+  --shelf-edge-half: 2px;
+  --shelf-shine-z: 2.5px;
+  --shelf-card-left: 1px;
+  --shelf-shadow-top: -10px;
+  --shelf-shadow-height: 11px;
+  --shelf-shadow-blur: 10px;
+  --shelf-padding-top: 150px;
+  --shelf-padding-bottom: 140px;
+  --shelf-title-size: 13px;
+  --shelf-artist-size: 11px;
+  --shelf-pitch: 5.5deg;
+  margin-top: 310px;
+  overflow: visible;
+}
+
+.dj-page-container.with-glassy-shelf .spine-shelf-container,
+.dj-page-container.with-glassy-shelf .inline-record-viewer {
+  backdrop-filter: blur(20px) brightness(1.18);
+  -webkit-backdrop-filter: blur(20px) brightness(1.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dj-page-container.no-glassy-shelf .spine-shelf-container,
+.dj-page-container.no-glassy-shelf .inline-record-viewer {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: transparent;
 }
 
 .spine-shelf-bar {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
-  height: 16px;
+  justify-content: center;
+  gap: var(--shelf-record-gap);
+  height: var(--shelf-bar-height);
   width: max-content;
-  min-width: 800px;
-  max-width: 90vw;
-  flex-wrap: wrap;
-  background: linear-gradient(180deg, #1f1f1f, #0d0d0d);
-  border-radius: 2px;
-  box-shadow: 0 30px 60px rgba(0,0,0,0.9), inset 0 1px 1px rgba(255,255,255,0.1);
+  min-width: min(300px, 85vw);
+  max-width: 94vw;
+  flex-wrap: nowrap;
+  border-radius: 4px;
   position: relative;
-  padding: 0 40px;
+  padding: 0 var(--shelf-bar-padding-right) 0 var(--shelf-bar-padding-left);
+  margin: 0 auto;
+  box-sizing: border-box;
+  transition: background 0.35s ease, border 0.35s ease, box-shadow 0.35s ease, backdrop-filter 0.35s ease;
 }
 
+.dj-page-container.is-vertical-rig .spine-shelf-bar {
+  min-width: min(260px, 85vw);
+  max-width: 92vw;
+}
+
+/* Shelf Bar Themes matching DJ Setup */
+.spine-shelf-bar.dj-theme-glass-clear {
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border: 1.5px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(255, 255, 255, 0.9);
+}
+
+.spine-shelf-bar.dj-theme-glass-clear::before {
+  background: rgba(255, 255, 255, 0.2);
+  filter: blur(10px);
+}
+
+.spine-shelf-bar.dj-theme-glass-smoked {
+  background: rgba(18, 20, 26, 0.68);
+  backdrop-filter: blur(28px) saturate(1.2);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 35px 75px rgba(0, 0, 0, 0.75), inset 0 1px 2px rgba(255, 255, 255, 0.22);
+}
+
+.spine-shelf-bar.dj-theme-glass-smoked::before {
+  background: rgba(0, 0, 0, 0.65);
+  filter: blur(12px);
+}
+
+.spine-shelf-bar.dj-theme-light {
+  background: linear-gradient(180deg, #dcdcdc 0%, #b8b8b8 50%, #909090 100%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+
+.spine-shelf-bar.dj-theme-light::before {
+  background: rgba(0, 0, 0, 0.45);
+  filter: blur(12px);
+}
+
+.spine-shelf-bar.dj-theme-dark,
+.spine-shelf-bar {
+  background: linear-gradient(180deg, #1f1f1f 0%, #0d0d0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 38px 75px rgba(0, 0, 0, 0.9), inset 0 1px 2px rgba(255, 255, 255, 0.12);
+}
+
+.spine-shelf-bar.dj-theme-dark::before,
 .spine-shelf-bar::before {
   content: "";
   position: absolute;
-  top: -8px;
+  top: var(--shelf-shadow-top);
   left: 2%;
   width: 96%;
-  height: 10px;
-  background: rgba(0,0,0,0.6);
-  filter: blur(8px);
+  height: var(--shelf-shadow-height);
+  background: rgba(0, 0, 0, 0.6);
+  filter: blur(var(--shelf-shadow-blur));
   z-index: -1;
 }
 
 .spine-record-wrapper {
   position: relative;
-  width: 10px; /* Slightly wider */
-  height: 230px;
+  width: var(--shelf-spine-width);
+  height: var(--shelf-record-size);
   cursor: pointer;
-  perspective: 1200px;
+  perspective: 1500px;
   z-index: 5;
 }
 
 .spine-record-card {
   position: absolute;
-  bottom: 16px;
-  left: 2px;
-  width: 230px;
-  height: 230px;
+  bottom: var(--shelf-bar-height);
+  left: var(--shelf-card-left);
+  width: var(--shelf-record-size);
+  height: var(--shelf-record-size);
   transform-origin: bottom left;
-  transform: rotateY(82deg) translateZ(0); /* 4 degrees less */
+  transform: rotateX(var(--shelf-pitch)) rotateY(82deg) translateX(0);
   transform-style: preserve-3d;
-  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-  pointer-events: none; /* Fix hover paradox! */
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: none;
+  border-radius: 1.5px;
+  box-shadow: -1.5px 0 4px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
-.spine-record-wrapper:hover {
-  /* Removed z-index: 10 so it doesn't unnaturally pop over other items */
+/* Ambient light falloff into shelf depth */
+.spine-record-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 1.5px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(0, 0, 0, 0.02) 25%,
+    rgba(0, 0, 0, 0.08) 80%,
+    rgba(0, 0, 0, 0.16) 100%
+  );
+  transform: translateZ(calc(var(--shelf-edge-half) + 0.1px));
+  pointer-events: none;
 }
 
+/* Pure X-axis linear slide-out towards the user */
 .spine-record-wrapper:hover .spine-record-card {
-  transform: rotateY(82deg) translateX(-65px); /* Slides the record further outwards toward the user */
+  transform: rotateX(var(--shelf-pitch)) rotateY(82deg) translateX(var(--shelf-slide-out));
+  box-shadow: -2.5px 0 8px rgba(0, 0, 0, 0.3), 0 6px 14px rgba(0, 0, 0, 0.3);
 }
 
-/* Thinner depth for spines (4px) */
+/* Realistic dark paperboard inner/back plate (prevents parallax double-vision ghosting) */
 .spine-record-depth {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #403f3c, #171716 58%, #050505);
-  transform: translateZ(-2px);
+  border-radius: 1.5px;
+  background: linear-gradient(135deg, #242220 0%, #151413 55%, #0d0c0c 100%);
+  transform: translateZ(calc(-1 * var(--shelf-edge-half)));
   backface-visibility: hidden;
 }
 
@@ -2373,36 +3092,39 @@ button { font: inherit; }
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: translateZ(2px);
+  transform: translateZ(var(--shelf-edge-half));
   backface-visibility: hidden;
+  border-radius: 1.5px;
 }
 
 .spine-no-art {
-  background: #333;
+  background: #1e1d1c;
   display: grid;
   place-items: center;
-  color: #777;
+  color: #555;
+  border-radius: 1.5px;
 }
 
+/* Subtle, minimal top sheen */
 .spine-record-plastic, .spine-record-shine {
   position: absolute;
   inset: 0;
-  transform: translateZ(2.5px);
+  transform: translateZ(var(--shelf-shine-z));
   pointer-events: none;
 }
 
 .spine-record-plastic::before {
   content: "";
   position: absolute;
-  inset: 4px 1px auto;
+  inset: 3px 1px auto;
   height: 1px;
-  background: linear-gradient(90deg, transparent, #fff8 12%, #fff2 65%, transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18) 15%, rgba(255, 255, 255, 0.04) 65%, transparent);
 }
 
 /* Tooltip */
 .spine-record-tooltip {
   position: absolute;
-  bottom: 230px;
+  bottom: var(--shelf-tooltip-bottom);
   left: 50%;
   transform: translateX(-50%) translateY(10px) scale(0.9);
   background: #111;
@@ -2413,12 +3135,18 @@ button { font: inherit; }
   align-items: center;
   gap: 12px;
   width: max-content;
-  max-width: 300px;
+  max-width: min(380px, 85vw);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s, transform 0.2s;
   box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  z-index: 20;
+  z-index: 50;
+}
+
+.spine-shelf-container.dj-theme-glass-clear .spine-record-tooltip {
+  background: rgba(22, 24, 30, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
 .spine-record-wrapper:hover .spine-record-tooltip {
@@ -2427,9 +3155,9 @@ button { font: inherit; }
 }
 
 .spine-tooltip-art {
-  width: 40px;
-  height: 40px;
-  border-radius: 4px;
+  width: var(--shelf-tooltip-art);
+  height: var(--shelf-tooltip-art);
+  border-radius: 6px;
   object-fit: cover;
 }
 
@@ -2439,37 +3167,146 @@ button { font: inherit; }
 }
 
 .spine-record-tooltip-text strong {
-  font-size: 14px;
+  font-size: var(--shelf-title-size);
   color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 200px;
+  max-width: 280px;
 }
 
 .spine-record-tooltip-text small {
-  font-size: 12px;
+  font-size: var(--shelf-artist-size);
   color: #888;
 }
 
-/* Edges for 3D */
+/* Edges for 3D Record Jacket */
 .spine-record-edge {
   position: absolute;
-  background: #111;
+  box-sizing: border-box;
 }
-.spine-edge-top { top: 0; left: 0; right: 0; height: 4px; transform: rotateX(-90deg); transform-origin: top; }
-.spine-edge-bottom { bottom: 0; left: 0; right: 0; height: 4px; transform: rotateX(90deg); transform-origin: bottom; }
-.spine-edge-left { top: 0; bottom: 0; left: 0; width: 4px; transform: rotateY(-90deg); transform-origin: left; }
-.spine-edge-right { top: 0; bottom: 0; right: 0; width: 4px; transform: rotateY(90deg); transform-origin: right; }
+
+/* Left edge: Seamless album artwork spine facing the viewer */
+.spine-edge-left { 
+  top: 0; 
+  bottom: 0; 
+  left: 0; 
+  width: var(--shelf-edge-thickness); 
+  transform: translateZ(var(--shelf-edge-half)) rotateY(-90deg); 
+  transform-origin: left; 
+  border-radius: 1px 0 0 1px;
+  background-image: 
+    linear-gradient(
+      90deg, 
+      rgba(255, 255, 255, 0.22) 0%, 
+      rgba(255, 255, 255, 0.06) 30%, 
+      transparent 60%, 
+      rgba(0, 0, 0, 0.22) 100%
+    ),
+    var(--album-art, linear-gradient(180deg, #3a3836, #1c1b1a));
+  background-size: 100% 100%, var(--shelf-record-size) var(--shelf-record-size);
+  background-position: center, 0% 50%;
+  box-shadow: 
+    inset 0.5px 0 0 rgba(255, 255, 255, 0.08),
+    inset -0.5px 0 0 rgba(0, 0, 0, 0.22);
+}
+
+/* Top edge: Paperboard core seam */
+.spine-edge-top { 
+  top: 0; 
+  left: 0; 
+  right: 0; 
+  height: var(--shelf-edge-thickness); 
+  transform: translateZ(var(--shelf-edge-half)) rotateX(-90deg); 
+  transform-origin: top; 
+  border-radius: 1px 1px 0 0;
+  background: #181716;
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Bottom edge: Grounded paperboard seam */
+.spine-edge-bottom { 
+  bottom: 0; 
+  left: 0; 
+  right: 0; 
+  height: var(--shelf-edge-thickness); 
+  transform: translateZ(var(--shelf-edge-half)) rotateX(90deg); 
+  transform-origin: bottom; 
+  border-radius: 0 0 1px 1px;
+  background: #121110;
+}
+
+/* Right edge: Inner sleeve opening slit */
+.spine-edge-right { 
+  top: 0; 
+  bottom: 0; 
+  right: 0; 
+  width: var(--shelf-edge-thickness); 
+  transform: translateZ(var(--shelf-edge-half)) rotateY(90deg); 
+  transform-origin: right; 
+  background: linear-gradient(90deg, #181716, #0c0b0b 40%, #060606 60%, #181716 100%);
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.85);
+}
 
 /* Inline Record Viewer */
 .inline-record-viewer {
   display: flex;
-  background: transparent;
+  position: relative;
+  z-index: 3;
   color: var(--foreground);
   animation: fade-in 0.3s ease-out;
-  margin-top: 40px;
+  margin-top: 0;
+  margin-bottom: 40px;
   width: 100%;
+  transition: backdrop-filter 0.3s ease, background 0.3s ease;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
+.inline-record-viewer .record-title {
+  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.85), 0 1px 3px rgba(0, 0, 0, 0.95);
+}
+
+.inline-record-viewer .record-artist {
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+}
+
+.inline-record-viewer .record-meta span {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+}
+
+.inline-record-viewer .record-tracklist li {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+
+.inline-record-viewer .record-tracks-panel h3 {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85);
+}
+
+.inline-record-viewer .record-instruction {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+
+/* Remove 2D box shadow and light square silhouette artifacts around 3D rotating jacket */
+.inline-record-viewer .record-sleeve-container {
+  box-shadow: none;
+  background: transparent;
+}
+
+.inline-record-viewer .track-artwork-card {
+  isolation: auto;
+}
+
+.inline-record-viewer .track-artwork-plastic {
+  inset: 0;
+  border: none;
+}
+
+.inline-record-viewer .track-artwork-shine {
+  inset: 0;
+}
+
+.inline-record-viewer .track-artwork-depth {
+  background: #111;
 }
 
 .inline-record-content {
@@ -2529,4 +3366,665 @@ button { font: inherit; }
   0% { transform: rotateX(0deg) rotateZ(0deg); }
   50% { transform: rotateX(30deg) rotateZ(180deg); }
   100% { transform: rotateX(60deg) rotateZ(360deg); }
+}
+
+/* ==========================================================================
+   Vertical & Snapped DJ Setup Layout
+   ========================================================================== */
+
+/* Turntable Battle Mode Container */
+.turntable-battle-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 360px;
+  height: 290px;
+  flex-shrink: 0;
+  transition: width 0.4s ease, height 0.4s ease;
+}
+
+.turntable-battle-wrapper.is-battle {
+  width: 290px;
+  height: 360px;
+}
+
+.turntable-battle-wrapper.is-battle .turntable {
+  transform: rotate(-90deg);
+  flex-shrink: 0;
+  transition: transform 0.4s ease, background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+}
+
+/* Battle Mode Turntable Lighting (Counteracting -90deg rotation so overhead light & shadows stay natural) */
+.turntable-battle-wrapper.is-battle .turntable.theme-light {
+  background: linear-gradient(225deg, #e0e0e0 0%, #b0b0b0 50%, #909090 100%);
+  border-color: #888;
+  box-shadow: 
+    inset 2px 0 5px rgba(255,255,255,0.8),
+    inset -2px 0 5px rgba(0,0,0,0.4),
+    -10px 0 20px rgba(0,0,0,0.6);
+}
+
+.turntable-battle-wrapper.is-battle .turntable.theme-dark {
+  background: linear-gradient(225deg, #333 0%, #1a1a1a 50%, #111 100%);
+  border-color: #444;
+  box-shadow: 
+    inset 2px 0 5px rgba(255,255,255,0.1),
+    inset -2px 0 5px rgba(0,0,0,0.8),
+    -10px 0 20px rgba(0,0,0,0.9);
+}
+
+.turntable-battle-wrapper.is-battle .turntable.theme-glass-clear {
+  background: rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(24px) saturate(1.4) brightness(1.1) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.4) brightness(1.1) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.55) !important;
+  box-shadow: 
+    inset 2px 0 6px rgba(255, 255, 255, 0.85),
+    inset -2px 0 6px rgba(0, 0, 0, 0.15),
+    -18px 0 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+.turntable-battle-wrapper.is-battle .turntable.theme-glass-clear .turntable-chassis {
+  background: rgba(255, 255, 255, 0.11) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 
+    inset 0 0 20px rgba(255, 255, 255, 0.25), 
+    inset 2px 0 6px rgba(255, 255, 255, 0.35) !important;
+}
+
+.turntable-battle-wrapper.is-battle .turntable.theme-glass-smoked {
+  background: rgba(18, 20, 26, 0.48) !important;
+  backdrop-filter: blur(24px) saturate(1.2) brightness(0.95) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.2) brightness(0.95) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 
+    inset 2px 0 4px rgba(255, 255, 255, 0.25),
+    inset -2px 0 6px rgba(0, 0, 0, 0.7),
+    -22px 0 50px rgba(0, 0, 0, 0.8) !important;
+}
+
+.turntable-battle-wrapper.is-battle .turntable.theme-glass-smoked .turntable-chassis {
+  background: rgba(12, 14, 18, 0.38) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    inset 0 0 25px rgba(0, 0, 0, 0.8), 
+    inset 1px 0 3px rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Vertical Rig Wrapper */
+.dj-rig-wrapper.vertical-rig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 100vw;
+  margin-top: 15px;
+  margin-bottom: 30px;
+  transition: all 0.4s ease;
+}
+
+/* Vertical DJ Desk and Page Natural Scrolling */
+.dj-setup-container.is-vertical {
+  justify-content: flex-start !important;
+  gap: 20px !important;
+  min-height: auto !important;
+  padding-top: 60px !important;
+  padding-bottom: 40px !important;
+}
+
+.dj-desk.vertical-rig {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 24px !important;
+  padding: 28px 24px !important;
+  width: max-content !important;
+  max-width: 95vw !important;
+  transform: perspective(1200px) rotateX(4deg) !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.85), inset 0 2px 10px rgba(255, 255, 255, 0.05);
+  background: #1a1a1a;
+  border-radius: 16px;
+  border: 1px solid #333;
+  overflow: visible !important;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Glass Desk in Vertical Mode */
+.dj-desk.vertical-rig.dj-theme-glass-clear {
+  background: rgba(255, 255, 255, 0.14) !important;
+  backdrop-filter: blur(28px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.35), inset 0 2px 8px rgba(255, 255, 255, 0.7) !important;
+}
+
+.dj-desk.vertical-rig.dj-theme-glass-smoked {
+  background: rgba(14, 16, 22, 0.58) !important;
+  backdrop-filter: blur(28px) saturate(1.2) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.2) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8), inset 0 2px 8px rgba(255, 255, 255, 0.18) !important;
+}
+
+/* Deck Unit in Vertical Mode */
+.vertical-deck-unit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+/* Dynamic Placement: Jackets Above vs Side */
+.vertical-rig.jackets-above .vertical-deck-unit {
+  flex-direction: column !important;
+  gap: 14px !important;
+}
+
+.vertical-rig.jackets-side .vertical-deck-unit {
+  flex-direction: row;
+  gap: 24px;
+}
+
+/* Counter-Clockwise (Right Screen Snap): Sleeves on Right, Turntables on Left */
+.vertical-rig.vertical-ccw.jackets-side .vertical-deck-unit {
+  flex-direction: row-reverse;
+}
+
+/* Clockwise (Left Screen Snap): Sleeves on Left, Turntables on Right */
+.vertical-rig.vertical-cw.jackets-side .vertical-deck-unit {
+  flex-direction: row;
+}
+
+/* Sleeve Container and Mini Stand */
+.vertical-sleeve-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.vertical-rig .dj-stand-sleeve,
+.vertical-sleeve-container .dj-stand-sleeve {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  width: 196px !important;
+  height: 196px !important;
+  transform: perspective(800px) rotateX(10deg) !important;
+  box-shadow: 0 16px 28px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1) !important;
+  border-radius: 3px !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  z-index: 2 !important;
+  transition: transform 0.4s ease;
+}
+
+.vertical-rig .dj-stand-sleeve:hover,
+.vertical-sleeve-container .dj-stand-sleeve:hover {
+  transform: perspective(800px) rotateX(4deg) translateY(-6px) !important;
+}
+
+.vertical-rig.jackets-above .dj-stand-sleeve,
+.vertical-rig.jackets-above .vertical-sleeve-container .dj-stand-sleeve {
+  width: 160px !important;
+  height: 160px !important;
+}
+
+.vertical-rig.jackets-above .dj-sleeve-stand-mini {
+  width: 175px !important;
+}
+
+.dj-stand-sleeve-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #252528 0%, #141416 100%);
+  color: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 2px;
+}
+
+.dj-sleeve-stand-mini {
+  width: 216px;
+  height: 14px;
+  background: linear-gradient(180deg, #2a2a2a, #111);
+  border-radius: 3px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.7), inset 0 1px 1px rgba(255,255,255,0.15);
+  position: relative;
+  z-index: 1;
+  border: 1px solid #333;
+  margin-top: -6px;
+}
+
+.dj-sleeve-stand-mini::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: 8px;
+  right: 8px;
+  height: 3px;
+  background: rgba(0, 0, 0, 0.8);
+  filter: blur(2px);
+}
+
+.dj-sleeve-stand-mini.dj-theme-glass-clear {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+}
+.dj-sleeve-stand-mini.dj-theme-glass-clear::before {
+  background: rgba(255, 255, 255, 0.16) !important;
+  filter: blur(4px);
+}
+
+.dj-sleeve-stand-mini.dj-theme-glass-smoked {
+  background: rgba(18, 20, 26, 0.65) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6), inset 0 1px 2px rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Center Console Visualizer in Vertical Rig */
+.dj-desk.vertical-rig .dj-center-console {
+  width: 290px !important;
+  height: 46px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 6px 0 !important;
+  padding: 4px 8px !important;
+}
+
+/* Ultra Narrow Screens (<420px) */
+@media (max-width: 420px) {
+  .turntable-battle-wrapper.is-battle {
+    transform: scale(0.9);
+  }
+  .vertical-rig .dj-stand-sleeve,
+  .vertical-sleeve-container .dj-stand-sleeve {
+    width: 150px !important;
+    height: 150px !important;
+  }
+  .dj-sleeve-stand-mini {
+    width: 165px;
+  }
+  .dj-desk.vertical-rig .dj-center-console {
+    width: 260px !important;
+  }
+}
+
+/* ==========================================================================
+   Background Framing & Crop Modal Styles
+   ========================================================================== */
+
+.framing-dialog-content {
+  width: min(880px, calc(100vw - 32px)) !important;
+  max-width: 880px !important;
+  max-height: min(92vh, 760px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  padding: 24px !important;
+  background: #121211 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85) !important;
+  overflow-y: auto !important;
+  color: #eee !important;
+}
+
+.framing-dialog-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #fff;
+  margin: 0;
+}
+
+.framing-dialog-desc {
+  font-size: 12px;
+  color: #888;
+  margin: 4px 0 16px 0;
+  line-height: 1.4;
+}
+
+.framing-dialog-body {
+  display: grid;
+  grid-template-columns: 1fr 310px;
+  gap: 24px;
+  min-height: 0;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .framing-dialog-body {
+    grid-template-columns: 1fr;
+  }
+}
+
+.framing-stage-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.framing-viewport-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.framing-viewport-tag {
+  display: flex;
+  align-items: center;
+  color: #aaa;
+  font-weight: 600;
+}
+
+.framing-drag-hint {
+  display: flex;
+  align-items: center;
+  color: var(--primary, #00d26a);
+  font-size: 11px;
+}
+
+.framing-viewport {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #090909;
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  user-select: none;
+}
+
+.framing-viewport.is-dragging {
+  cursor: grabbing;
+}
+
+.framing-viewport-img {
+  pointer-events: none;
+  transition: transform 0.05s ease-out;
+}
+
+.framing-empty-state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #555;
+  font-size: 12px;
+}
+
+/* Rule of Thirds Guide Grid */
+.framing-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.grid-line {
+  position: absolute;
+  pointer-events: none;
+}
+
+.grid-line-h1 {
+  top: 33.33%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.grid-line-h2 {
+  top: 66.66%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.grid-line-v1 {
+  left: 33.33%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+.grid-line-v2 {
+  left: 66.66%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed rgba(255, 255, 255, 0.18);
+}
+
+/* Focal Center Reticle */
+.framing-reticle {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.05s ease-out;
+}
+
+.reticle-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--primary, #00d26a);
+  box-shadow: 0 0 6px rgba(0, 210, 106, 0.9);
+}
+
+.reticle-ring {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+}
+
+.framing-coords-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-family: monospace;
+  color: #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+}
+
+.framing-aspect-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 210, 106, 0.08);
+  border: 1px solid rgba(0, 210, 106, 0.2);
+  border-radius: 6px;
+  font-size: 11px;
+  color: #bbf7d0;
+  line-height: 1.4;
+}
+
+/* Sidebar Controls */
+.framing-controls-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.framing-control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.framing-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ccc;
+}
+
+.framing-val-readout {
+  font-size: 11px;
+  color: var(--primary, #00d26a);
+  font-family: monospace;
+}
+
+/* Fit Toggle */
+.framing-fit-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.framing-fit-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #888;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.framing-fit-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.framing-fit-btn.active {
+  background: rgba(0, 210, 106, 0.12);
+  border-color: var(--primary, #00d26a);
+  color: #fff;
+}
+
+.framing-fit-btn strong {
+  font-size: 11px;
+  color: #fff;
+}
+
+.framing-fit-btn small {
+  font-size: 9px;
+  color: #777;
+  margin-top: 2px;
+}
+
+.framing-fit-btn.active small {
+  color: #a3e635;
+}
+
+/* Presets Grid */
+.framing-presets-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.framing-preset-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #bbb;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.framing-preset-chip:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.framing-preset-chip.active {
+  background: var(--primary, #00d26a);
+  border-color: var(--primary, #00d26a);
+  color: #000;
+  font-weight: 600;
+}
+
+/* Range Sliders */
+.framing-slider-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.slider-edge-label {
+  font-size: 10px;
+  color: #666;
+  min-width: 28px;
+  text-align: center;
+}
+
+.framing-range-slider {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  cursor: pointer;
+  accent-color: var(--primary, #00d26a);
+}
+
+.framing-range-slider::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  appearance: none;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+  cursor: pointer;
+}
+
+.framing-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }

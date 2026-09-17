@@ -1,12 +1,14 @@
-import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
 import { player, type AudioOutputState } from "../lib/player";
+import { mp3Player } from "../lib/mp3Player";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { useMp3Settings } from "../hooks/useMp3Settings";
-import { exportMp3Assets, importMp3Assets } from "../lib/mp3Storage";
+import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds } from "../lib/mp3Storage";
+import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
@@ -21,6 +23,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
   const [mp3Settings, setMp3Settings] = useMp3Settings();
   const [isExportingData, setIsExportingData] = useState(false);
   const [isImportingData, setIsImportingData] = useState(false);
+  const [framingOpen, setFramingOpen] = useState(false);
 
   async function handleExportData() {
     setIsExportingData(true);
@@ -57,6 +60,16 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         console.warn("Failed to package MP3 audio assets:", assetErr);
         alert("Warning: Some MP3 audio assets could not be packaged: " + (assetErr?.message || String(assetErr)));
       }
+
+      // Package album custom backgrounds from IndexedDB
+      try {
+        const albumBgs = await exportAlbumBackgrounds();
+        if (Object.keys(albumBgs).length > 0) {
+          data["album-backgrounds"] = albumBgs;
+        }
+      } catch (bgErr: any) {
+        console.warn("Failed to package album backgrounds:", bgErr);
+      }
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -88,8 +101,39 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           await importMp3Assets(data["mp3-assets"]);
         }
 
+        // Restore custom album backgrounds to IndexedDB if present
+        if (data["album-backgrounds"]) {
+          await importAlbumBackgrounds(data["album-backgrounds"]);
+        }
+
+        // Repair any stale blob: artwork URLs in MP3 collections using imported artwork assets
+        if (data["listening-room-collections"] && data["mp3-assets"]?.artwork) {
+          let cols = data["listening-room-collections"];
+          if (typeof cols === "string") {
+            try { cols = JSON.parse(cols); } catch { /* ignore */ }
+          }
+          if (Array.isArray(cols)) {
+            const artworkMap = data["mp3-assets"].artwork as Record<string, string>;
+            for (const col of cols) {
+              if (col.format === "mp3" || col.id?.startsWith("rec-mp3-")) {
+                const artId = `art-${col.id}`;
+                const artData = artworkMap[artId] || artworkMap[col.id] || artworkMap[col.id.replace(/^rec-/, "")];
+                if (artData && Array.isArray(col.tracks)) {
+                  for (const trk of col.tracks) {
+                    if (!trk.imageUrl || trk.imageUrl.startsWith("blob:")) {
+                      trk.imageUrl = artData;
+                      trk.originalImageUrl = artData;
+                    }
+                  }
+                }
+              }
+            }
+            data["listening-room-collections"] = cols;
+          }
+        }
+
         for (const [key, value] of Object.entries(data)) {
-          if (key === "mp3-assets") continue;
+          if (key === "mp3-assets" || key === "album-backgrounds") continue;
           if (value === null) {
             localStorage.removeItem(key);
           } else {
@@ -116,7 +160,9 @@ export function BackgroundSettingsDialog({ background, children }: { background:
     setAudioLoading(true);
     setError(null);
     try {
-      setAudio(await player.audioOutputs());
+      const state = await player.audioOutputs();
+      setAudio(state);
+      void mp3Player.setAudioOutput(state.selected);
     } catch (reason) {
       setError(String(reason));
     } finally {
@@ -135,6 +181,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
     setError(null);
     try {
       await player.setAudioOutput(output);
+      await mp3Player.setAudioOutput(output);
       setAudio((current) => current ? { ...current, selected: output } : current);
     } catch (reason) {
       setError(String(reason));
@@ -190,15 +237,67 @@ export function BackgroundSettingsDialog({ background, children }: { background:
             <header><span>Appearance</span><h2>Custom background</h2><p>Use your own image behind all listening-room themes.</p></header>
 
             <div className={`background-preview ${background.imageUrl ? "has-image" : ""}`}>
-              {background.imageUrl ? <img src={background.imageUrl} alt="Custom background preview" /> : <ImagePlus />}
+              {background.imageUrl ? (
+                <img 
+                  src={background.imageUrl} 
+                  alt="Custom background preview" 
+                  style={{
+                    objectFit: background.fit || "cover",
+                    objectPosition: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                    transform: (background.zoom ?? 100) > 100 ? `scale(${(background.zoom ?? 100) / 100})` : undefined,
+                    transformOrigin: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                  }}
+                />
+              ) : <ImagePlus />}
               <span>{background.loading ? "Loading background..." : background.fileName ?? "No custom image selected"}</span>
             </div>
 
             <input ref={input} className="visually-hidden" type="file" accept="image/*" onChange={upload} />
             <div className="background-file-actions">
               <Button onClick={() => input.current?.click()} disabled={saving || background.loading}><ImagePlus size={15} />{background.imageUrl ? "Replace image" : "Choose image"}</Button>
+              {background.imageUrl && (
+                <Button variant="outline" onClick={() => setFramingOpen(true)} disabled={saving || background.loading}>
+                  <Crop size={15} style={{ marginRight: '6px' }} />
+                  Crop & Framing
+                </Button>
+              )}
               {background.imageUrl && <Button variant="ghost" className="background-remove" onClick={() => void remove()} disabled={saving}><Trash2 size={15} />Remove</Button>}
             </div>
+
+            {/* Quick Framing & Crop Shortcut */}
+            {background.imageUrl && (
+              <div style={{ marginTop: '20px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#eee' }}>
+                    <Crop size={14} style={{ color: 'var(--primary, #00d26a)' }} />
+                    <strong>Vertical Framing / What Fits In</strong>
+                  </div>
+                  <span style={{ fontSize: '11px', color: '#aaa' }}>
+                    {background.positionY === 0 ? "Top (Faces / Headroom)" : background.positionY === 50 ? "Center" : background.positionY === 100 ? "Bottom" : `${background.positionY}%`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <span style={{ fontSize: '11px', color: '#888' }}>Top</span>
+                  <input 
+                    type="range" 
+                    min="0" 
+                    max="100" 
+                    value={background.positionY ?? 50} 
+                    onChange={(e) => background.setPositionY(Number(e.target.value))}
+                    style={{ flex: 1, accentColor: 'var(--primary, #00d26a)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: '11px', color: '#888' }}>Bottom</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                  <span style={{ fontSize: '11px', color: '#777' }}>
+                    Fit: <span style={{ color: '#aaa', textTransform: 'capitalize' }}>{background.fit || "cover"}</span> {(background.zoom ?? 100) > 100 && `• Zoom: ${background.zoom}%`}
+                  </span>
+                  <Button variant="ghost" size="sm" onClick={() => setFramingOpen(true)} style={{ height: '24px', fontSize: '11px', color: 'var(--primary, #00d26a)' }}>
+                    Interactive Screen Cropper →
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <label className="background-opacity">
               <span><strong>Background opacity</strong><output>{Math.round(background.opacity * 100)}%</output></span>
@@ -217,12 +316,25 @@ export function BackgroundSettingsDialog({ background, children }: { background:
               <i />
             </button>
             {error && <small className="settings-error">{error}</small>}
+
+            <BackgroundFramingDialog
+              open={framingOpen}
+              onOpenChange={setFramingOpen}
+              imageUrl={background.imageUrl}
+              initialPositionX={background.positionX}
+              initialPositionY={background.positionY}
+              initialFit={background.fit}
+              initialZoom={background.zoom}
+              onSave={(framing) => background.setFraming(framing)}
+              title="Custom Wallpaper Framing & Crop"
+              description="Adjust what part of your photo fits your screen. Ideal for portrait photos to showcase faces and headroom, or choosing between fill and ambient full-image."
+            />
           </section>
         )}
 
         {tab === "audio" && (
           <section className="settings-panel audio-settings-panel">
-            <header><span>Playback</span><h2>Audio output</h2><p>Choose where Listening Room sends Spotify audio. Changing output briefly reconnects the Spotify Connect player.</p></header>
+            <header><span>Playback</span><h2>Audio output</h2><p>Choose where Listening Room sends Spotify and MP3 audio. Changing output briefly reconnects the Spotify Connect player.</p></header>
 
             <div className="audio-output-card">
               <Speaker size={22} />
@@ -255,6 +367,144 @@ export function BackgroundSettingsDialog({ background, children }: { background:
                 <span style={{ fontSize: '12px', color: '#888' }}>Unlock local MP3 album creation in the Archive Room (Page 4) and custom record management.</span>
               </div>
             </label>
+
+            <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
+              <input 
+                type="checkbox" 
+                checked={djSettings.enableAdvancedAlbumEditing} 
+                onChange={e => setDjSettings({ ...djSettings, enableAdvancedAlbumEditing: e.target.checked })}
+                style={{width: '20px', height: '20px', accentColor: 'var(--primary)'}}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Enable Advanced Album Editing</span>
+                <span style={{ fontSize: '12px', color: '#888' }}>Unlock per-album custom backgrounds, vinyl pressing colors, and equalizer tuning in Page 4.</span>
+              </div>
+            </label>
+
+            <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
+              <input 
+                type="checkbox" 
+                checked={djSettings.enableGlassyShelf ?? true} 
+                onChange={e => setDjSettings({ ...djSettings, enableGlassyShelf: e.target.checked })}
+                style={{width: '20px', height: '20px', accentColor: 'var(--primary)'}}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span>Glassy Shelf & Album View</span>
+                <span style={{ fontSize: '12px', color: '#888' }}>Display custom backgrounds through the Page 5 shelf and album view with frosted blur and elevated brightness.</span>
+              </div>
+            </label>
+
+            {/* Vinyl Record Appearance */}
+            <div style={{ paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Disc3 size={18} style={{ color: 'var(--primary, #00d26a)' }} />
+                <span style={{ fontSize: '16px', fontWeight: 500, color: '#f1eee7' }}>Vinyl Record Appearance</span>
+              </div>
+              <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#888', lineHeight: '1.4' }}>
+                Choose the visual rendering standard for vinyl record discs across the DJ turntable, album view, and player scenes.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDjSettings({ ...djSettings, vinylDiscStyle: "realistic" })}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '14px 12px',
+                    borderRadius: '8px',
+                    background: djSettings.vinylDiscStyle !== "classic" ? 'rgba(0, 210, 106, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    border: djSettings.vinylDiscStyle !== "classic" ? '2px solid var(--primary, #00d26a)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.18s ease',
+                  }}
+                >
+                  <div 
+                    style={{ 
+                      width: '54px', 
+                      height: '54px', 
+                      borderRadius: '50%', 
+                      background: 'radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%)',
+                      position: 'relative',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    <div 
+                      style={{ 
+                        position: 'absolute', 
+                        inset: '4%', 
+                        borderRadius: '50%', 
+                        background: 'conic-gradient(from 30deg, transparent, rgba(255,255,255,0.18) 15%, transparent 25%, transparent 48%, rgba(255,255,255,0.14) 58%, transparent 68%)',
+                        pointerEvents: 'none',
+                      }} 
+                    />
+                    <div 
+                      style={{ 
+                        position: 'absolute', 
+                        inset: '6%', 
+                        borderRadius: '50%', 
+                        background: 'repeating-radial-gradient(circle, transparent 0 2px, rgba(255,255,255,0.08) 2.5px 3px)',
+                        pointerEvents: 'none',
+                      }} 
+                    />
+                    <div style={{ position: 'absolute', width: '32%', height: '32%', left: '34%', top: '34%', borderRadius: '50%', background: '#b91c1c' }} />
+                    <div style={{ position: 'absolute', width: '5px', height: '5px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', borderRadius: '50%', background: '#d8d8d3', boxShadow: '0 0 0 1.5px #111' }} />
+                  </div>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: djSettings.vinylDiscStyle !== "classic" ? '#fff' : '#ccc' }}>Realistic Sheen</strong>
+                    <span style={{ fontSize: '11px', color: '#777' }}>Page 2 specular flares & micro-grooves</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDjSettings({ ...djSettings, vinylDiscStyle: "classic" })}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '14px 12px',
+                    borderRadius: '8px',
+                    background: djSettings.vinylDiscStyle === "classic" ? 'rgba(0, 210, 106, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                    border: djSettings.vinylDiscStyle === "classic" ? '2px solid var(--primary, #00d26a)' : '1px solid rgba(255, 255, 255, 0.1)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.18s ease',
+                  }}
+                >
+                  <div 
+                    style={{ 
+                      width: '54px', 
+                      height: '54px', 
+                      borderRadius: '50%', 
+                      background: '#111',
+                      position: 'relative',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.6)',
+                    }}
+                  >
+                    <div 
+                      style={{ 
+                        position: 'absolute', 
+                        inset: '3px', 
+                        borderRadius: '50%', 
+                        boxShadow: 'inset 0 0 0 2px #222, inset 0 0 0 5px #111, inset 0 0 0 7px #2a2a2a, inset 0 0 0 10px #111',
+                        pointerEvents: 'none',
+                      }} 
+                    />
+                    <div style={{ position: 'absolute', width: '32%', height: '32%', left: '34%', top: '34%', borderRadius: '50%', background: '#b91c1c' }} />
+                    <div style={{ position: 'absolute', width: '4px', height: '4px', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', borderRadius: '50%', background: '#000' }} />
+                  </div>
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '13px', color: djSettings.vinylDiscStyle === "classic" ? '#fff' : '#ccc' }}>Classic Grooves</strong>
+                    <span style={{ fontSize: '11px', color: '#777' }}>Concentric shadow rings & matte finish</span>
+                  </div>
+                </button>
+              </div>
+            </div>
 
             <label className="dj-settings-toggle" style={{display: 'flex', alignItems: 'center', gap: '12px', fontSize: '16px', cursor: 'pointer', paddingBottom: '20px', borderBottom: '1px solid #333', marginBottom: '20px'}}>
               <input 
@@ -400,8 +650,176 @@ export function BackgroundSettingsDialog({ background, children }: { background:
                 </div>
               </div>
             )}
-            </section>
-          )}
+
+            <div className="dj-settings-layouts" style={{ marginTop: '25px', paddingTop: '20px', borderTop: '1px solid #333' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#aaa' }}>Vertical & Snapped Window Layout</h3>
+              <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#888', lineHeight: '1.4' }}>
+                When the window is narrow or snapped to screen edges, Battle Style rotates the turntables 90° with upright album jackets.
+              </p>
+              <div className="dj-layout-options" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <label className={`dj-layout-option ${djSettings.verticalRotationMode === 'auto' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="verticalRotationMode"
+                    value="auto"
+                    checked={djSettings.verticalRotationMode === 'auto'}
+                    onChange={() => setDjSettings({ ...djSettings, verticalRotationMode: 'auto' })}
+                  />
+                  <span>Auto (Adaptive Snap)</span>
+                  <small>Rotates 90° matching left/right screen position</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.verticalRotationMode === 'rotate-right' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="verticalRotationMode"
+                    value="rotate-right"
+                    checked={djSettings.verticalRotationMode === 'rotate-right'}
+                    onChange={() => setDjSettings({ ...djSettings, verticalRotationMode: 'rotate-right' })}
+                  />
+                  <span>Rotate Right (90° CW)</span>
+                  <small>Deck 1 on top, Deck 2 on bottom</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.verticalRotationMode === 'rotate-left' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="verticalRotationMode"
+                    value="rotate-left"
+                    checked={djSettings.verticalRotationMode === 'rotate-left'}
+                    onChange={() => setDjSettings({ ...djSettings, verticalRotationMode: 'rotate-left' })}
+                  />
+                  <span>Rotate Left (90° CCW)</span>
+                  <small>Deck 2 on top, Deck 1 on bottom</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.verticalRotationMode === 'disabled' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="verticalRotationMode"
+                    value="disabled"
+                    checked={djSettings.verticalRotationMode === 'disabled'}
+                    onChange={() => setDjSettings({ ...djSettings, verticalRotationMode: 'disabled' })}
+                  />
+                  <span>Horizontal Only</span>
+                  <small>Never rotate, keep standard horizontal rig</small>
+                </label>
+              </div>
+            </div>
+
+            <div className="dj-settings-layouts" style={{ marginTop: '25px', paddingTop: '20px', borderTop: '1px solid #333' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#aaa' }}>Turntables & DJ Setup Theme</h3>
+              <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#888', lineHeight: '1.4' }}>
+                Select a visual styling for both turntables and the DJ desk. You can also click either turntable to cycle anytime.
+              </p>
+              <div className="dj-layout-options" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <label className={`dj-layout-option ${(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'light' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="turntableTheme" 
+                    value="light" 
+                    checked={(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'light'} 
+                    onChange={() => setDjSettings({ ...djSettings, turntableTheme: 'light', isDark: false })} 
+                  />
+                  <span>Classic Silver</span>
+                  <small>Brushed aluminum body with silver hardware</small>
+                </label>
+
+                <label className={`dj-layout-option ${(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'dark' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="turntableTheme" 
+                    value="dark" 
+                    checked={(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'dark'} 
+                    onChange={() => setDjSettings({ ...djSettings, turntableTheme: 'dark', isDark: true })} 
+                  />
+                  <span>Matte Black</span>
+                  <small>Stealth dark chassis with high-contrast hardware</small>
+                </label>
+
+                <label className={`dj-layout-option ${(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'glass-clear' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="turntableTheme" 
+                    value="glass-clear" 
+                    checked={(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'glass-clear'} 
+                    onChange={() => setDjSettings({ ...djSettings, turntableTheme: 'glass-clear', isDark: false })} 
+                  />
+                  <span>Clear Frosted Glass</span>
+                  <small>Translucent ice acrylic casing with glowing background</small>
+                </label>
+
+                <label className={`dj-layout-option ${(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'glass-smoked' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="turntableTheme" 
+                    value="glass-smoked" 
+                    checked={(djSettings.turntableTheme || (djSettings.isDark ? 'dark' : 'light')) === 'glass-smoked'} 
+                    onChange={() => setDjSettings({ ...djSettings, turntableTheme: 'glass-smoked', isDark: true })} 
+                  />
+                  <span>Smoked Obsidian Glass</span>
+                  <small>Deep tinted glass casing with subtle prism reflections</small>
+                </label>
+              </div>
+            </div>
+
+            <div className="dj-settings-layouts" style={{ marginTop: '25px', paddingTop: '20px', borderTop: '1px solid #333' }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '18px', color: '#aaa' }}>Tonearm & Needle Style</h3>
+              <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#888', lineHeight: '1.4' }}>
+                Select your preferred tonearm shape and cartridge needle styling.
+              </p>
+              <div className="dj-layout-options" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <label className={`dj-layout-option ${(djSettings.tonearmStyle || 'technics-classic') === 'technics-classic' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="tonearmStyle" 
+                    value="technics-classic" 
+                    checked={(djSettings.tonearmStyle || 'technics-classic') === 'technics-classic'} 
+                    onChange={() => setDjSettings({ ...djSettings, tonearmStyle: 'technics-classic' })} 
+                  />
+                  <span>Technics Classic</span>
+                  <small>S-shaped arm with slotted SME headshell and Shure M44-7 needle</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.tonearmStyle === 'concorde-club' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="tonearmStyle" 
+                    value="concorde-club" 
+                    checked={djSettings.tonearmStyle === 'concorde-club'} 
+                    onChange={() => setDjSettings({ ...djSettings, tonearmStyle: 'concorde-club' })} 
+                  />
+                  <span>Concorde Club</span>
+                  <small>S-shaped arm with aerodynamic Ortofon Concorde needle</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.tonearmStyle === 'audiophile-wedge' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="tonearmStyle" 
+                    value="audiophile-wedge" 
+                    checked={djSettings.tonearmStyle === 'audiophile-wedge'} 
+                    onChange={() => setDjSettings({ ...djSettings, tonearmStyle: 'audiophile-wedge' })} 
+                  />
+                  <span>Audiophile Wedge</span>
+                  <small>S-shaped arm with faceted jewel cartridge and ruby stylus</small>
+                </label>
+
+                <label className={`dj-layout-option ${djSettings.tonearmStyle === 'straight-battle' ? 'active' : ''}`}>
+                  <input 
+                    type="radio" 
+                    name="tonearmStyle" 
+                    value="straight-battle" 
+                    checked={djSettings.tonearmStyle === 'straight-battle'} 
+                    onChange={() => setDjSettings({ ...djSettings, tonearmStyle: 'straight-battle' })} 
+                  />
+                  <span>Straight Battle Scratch</span>
+                  <small>Zero-skip rigid straight arm with high-vis battle cartridge</small>
+                </label>
+              </div>
+            </div>
+          </section>
+        )}
 
           {tab === "data" && (
             <section className="settings-panel">

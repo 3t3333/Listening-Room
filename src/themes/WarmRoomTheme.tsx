@@ -19,7 +19,14 @@ export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNe
 
   return (
     <section className="theme-scene warm-room-theme" style={style}>
-      <CustomBackground imageUrl={background.imageUrl} opacity={background.opacity} />
+      <CustomBackground 
+        imageUrl={background.imageUrl} 
+        opacity={background.opacity} 
+        positionX={background.positionX} 
+        positionY={background.positionY} 
+        fit={background.fit} 
+        zoom={background.zoom} 
+      />
       <div className="warm-title">
         <h1>{track?.name ?? "The room is quiet"}</h1>
         <p>{track?.artist ?? "Connect Spotify and put on a record."}</p>
