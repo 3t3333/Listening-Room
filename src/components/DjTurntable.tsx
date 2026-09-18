@@ -87,7 +87,7 @@ export function DjTurntable({
           </div>
           <div className="tonearm-cue-lever" />
           {/* The pivoting tonearm */}
-          <div className={`tonearm-arm ${isActive ? "dropped" : "rested"}`}>
+          <div className={`tonearm-arm ${isActive ? "dropped" : "rested"} tonearm-${tonearmStyle}`}>
             <svg viewBox="0 0 90 220" className="tonearm-svg" preserveAspectRatio="xMidYMid meet">
               <defs>
                 <filter id={`armShadow-${align}`} x="-30%" y="-30%" width="160%" height="160%">

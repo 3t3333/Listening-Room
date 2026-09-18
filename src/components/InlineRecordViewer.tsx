@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type CSSProperties } from "react";
-import { ArrowLeft, PlayCircle, ListPlus, Trash2, ImagePlus, RefreshCcw, Disc3 } from "lucide-react";
+import { ArrowLeft, PlayCircle, ListPlus, Trash2, ImagePlus, RefreshCcw, Disc3, SlidersHorizontal } from "lucide-react";
 import type { Collection } from "../lib/collections";
 import { deleteCollection } from "../lib/collections";
 import { InteractiveSleeve } from "./InteractiveSleeve";
@@ -7,6 +7,7 @@ import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 import { mp3Player } from "../lib/mp3Player";
 import { getVinylColorStyle } from "../lib/vinylColors";
+import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
 
 interface Props {
   record: Collection;
@@ -19,9 +20,15 @@ interface Props {
 }
 
 export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, onQueueTrack, onQueueAlbum, onAnimateRecord }: Props) {
+  const [currentRecord, setCurrentRecord] = useState<Collection>(record);
+  const [tracklistEditorOpen, setTracklistEditorOpen] = useState(false);
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCurrentRecord(record);
+  }, [record]);
 
   useEffect(() => {
     if (side !== "info") setHasOpened(true);
@@ -42,7 +49,7 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
     }
   }, [record.id]);
   
-  const tracks = record.tracks || [];
+  const tracks = currentRecord.tracks || [];
   const sideACount = Math.ceil(tracks.length / 2);
   const sideA = tracks.slice(0, sideACount);
   const sideB = tracks.slice(sideACount);
@@ -96,7 +103,7 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
   }
 
   function handlePlay(track: any) {
-    onPlayTrack(track, record);
+    onPlayTrack(track, currentRecord);
   }
 
   return (
@@ -128,7 +135,7 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
                   {record.format === "mp3" ? (
                     <Button 
                       variant="outline" 
-                      onClick={() => onAnimateRecord && onAnimateRecord(record)} 
+                      onClick={() => onAnimateRecord && onAnimateRecord(currentRecord)} 
                       style={{ flex: 1, borderColor: "var(--primary, #00d26a)", color: "var(--primary, #00d26a)" }}
                       title="Animate this record on an empty turntable"
                     >
@@ -147,6 +154,12 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
                      {coverTrack?.originalImageUrl !== undefined && coverTrack?.originalImageUrl !== coverTrack?.imageUrl ? <RefreshCcw size={16} /> : <ImagePlus size={16} />}
                      {coverTrack?.originalImageUrl !== undefined && coverTrack?.originalImageUrl !== coverTrack?.imageUrl ? "Reset Artwork" : "Change Artwork"}
                   </Button>
+                  {currentRecord.format === "mp3" && (
+                    <Button variant="outline" onClick={() => setTracklistEditorOpen(true)} style={{ flex: 1 }}>
+                      <SlidersHorizontal size={15} style={{ marginRight: '6px' }} />
+                      Edit Tracks
+                    </Button>
+                  )}
                   <Button variant="outline" onClick={handleDeleteRecord} style={{ color: '#ff5555', flex: 1 }}>
                     <Trash2 size={16} style={{ marginRight: '6px' }} />
                     Remove
@@ -155,7 +168,21 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
             </div>
           ) : (
             <div className="record-tracks-panel fade-in">
-              <h3>{side === "side-a" ? "Side A" : "Side B"}</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0 }}>{side === "side-a" ? "Side A" : "Side B"}</h3>
+                {currentRecord.format === "mp3" && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setTracklistEditorOpen(true)}
+                    style={{ fontSize: '11px', height: '26px', padding: '0 8px', gap: '5px' }}
+                    title="Edit track order, flip sides, or reverse tracks"
+                  >
+                    <SlidersHorizontal size={12} />
+                    Edit Tracks
+                  </Button>
+                )}
+              </div>
               <ul className="record-tracklist">
                 {currentTracks.map((track, i) => (
                   <li key={i} onClick={() => handlePlay(track)}>
@@ -197,7 +224,7 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
              >
                <div 
                  className={`record-vinyl-disc ${side === "side-b" ? "is-flipped" : ""}`}
-                 style={getVinylColorStyle(record.customization?.vinylColor)}
+                 style={getVinylColorStyle(currentRecord.customization?.vinylColor)}
                >
                  <div className="record-vinyl-grooves record-vinyl-grooves-a"></div>
                  <div className="record-vinyl-grooves record-vinyl-grooves-b"></div>
@@ -228,6 +255,17 @@ export function InlineRecordViewer({ record, sourceRect, onClose, onPlayTrack, o
            Close Viewer
         </button>
       </div>
+
+      {tracklistEditorOpen && (
+        <Mp3TracklistEditorDialog
+          open={tracklistEditorOpen}
+          onOpenChange={setTracklistEditorOpen}
+          record={currentRecord}
+          onSaved={(updatedTracks) => {
+            setCurrentRecord((prev) => ({ ...prev, tracks: updatedTracks }));
+          }}
+        />
+      )}
     </div>
   );
 }

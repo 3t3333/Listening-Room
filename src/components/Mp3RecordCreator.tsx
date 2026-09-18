@@ -146,6 +146,7 @@ export function Mp3RecordCreator({ onBack, onResolve }: Props) {
         artistImageUrl: null,
         year: year ? parseInt(year, 10) : null,
         tracks: collectionTracks,
+        originalTracks: [...collectionTracks],
         updatedAt: new Date().toISOString(),
       };
 

@@ -49,18 +49,42 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     }, 1800);
   }
 
+function isSameTrack(a: Track | null | undefined, b: Track | null | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if ((a as any).audioId && (b as any).audioId && (a as any).audioId === (b as any).audioId) return true;
+  if (a.uri && b.uri && a.uri === b.uri) return true;
+  return Boolean(a.name && b.name && a.name === b.name && a.artist === b.artist);
+}
+
+function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): boolean {
+  if (!a || !b) return false;
+  const aAudio = (a as any).audioId || (a.uri?.startsWith("mp3:") ? a.uri.slice(4) : null);
+  const bAudio = (b as any).audioId || (b.uri?.startsWith("mp3:") ? b.uri.slice(4) : null);
+  if (aAudio && bAudio) {
+    const aAlbum = aAudio.replace(/-\d+$/, "");
+    const bAlbum = bAudio.replace(/-\d+$/, "");
+    return Boolean(aAlbum && aAlbum === bAlbum);
+  }
+  if (a.imageUrl && b.imageUrl && a.imageUrl === b.imageUrl) return true;
+  return false;
+}
+
   const [deckTracks, setDeckTracks] = useState<{ left: Track | null; right: Track | null }>({
     left: null,
     right: null,
   });
   const [nextUniqueTrack, setNextUniqueTrack] = useState<Track | null>(null);
+  const [animatedTrack, setAnimatedTrack] = useState<Track | null>(null);
+  const [animatedSide, setAnimatedSide] = useState<"left" | "right" | null>(null);
+  const [animatedRecord, setAnimatedRecord] = useState<Collection | null>(null);
 
   useEffect(() => {
     const currentTrack = playback.current;
     const nextTrack = playback.next;
 
     setDeckTracks((prev) => {
-      const isSameAlbum = currentTrack?.imageUrl && nextTrack?.imageUrl && currentTrack.imageUrl === nextTrack.imageUrl;
+      const isAlbumContinuation = isSameAlbum(currentTrack, nextTrack) || isSameAlbum(prev.left, currentTrack) || isSameAlbum(prev.right, currentTrack);
       
       let newLeft = prev.left;
       let newRight = prev.right;
@@ -68,52 +92,52 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
 
       if (!prev.left && !prev.right) {
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
-      else if (activeSide === "left" && prev.left?.uri === currentTrack?.uri) {
+      else if (activeSide === "left" && isSameTrack(prev.left, currentTrack)) {
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
-      else if (activeSide === "right" && prev.right?.uri === currentTrack?.uri) {
-        newLeft = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+      else if (activeSide === "right" && isSameTrack(prev.right, currentTrack)) {
+        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
         newRight = currentTrack;
       }
-      else if (activeSide === "left" && prev.right?.uri === currentTrack?.uri) {
+      else if (activeSide === "left" && isSameTrack(prev.right, currentTrack)) {
         newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
         newRight = currentTrack;
       }
-      else if (activeSide === "right" && prev.left?.uri === currentTrack?.uri) {
+      else if (activeSide === "right" && isSameTrack(prev.left, currentTrack)) {
         newActiveSide = "left";
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
-      else if (activeSide === "left" && prev.left?.imageUrl && prev.left.imageUrl === currentTrack?.imageUrl) {
+      else if (activeSide === "left" && isSameAlbum(prev.left, currentTrack)) {
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
-      else if (activeSide === "right" && prev.right?.imageUrl && prev.right.imageUrl === currentTrack?.imageUrl) {
-        newLeft = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+      else if (activeSide === "right" && isSameAlbum(prev.right, currentTrack)) {
+        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
         newRight = currentTrack;
       }
-      else if (activeSide === "left" && prev.right?.imageUrl && prev.right.imageUrl === currentTrack?.imageUrl) {
+      else if (activeSide === "left" && isSameAlbum(prev.right, currentTrack)) {
         newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
         newRight = currentTrack;
       }
-      else if (activeSide === "right" && prev.left?.imageUrl && prev.left.imageUrl === currentTrack?.imageUrl) {
+      else if (activeSide === "right" && isSameAlbum(prev.left, currentTrack)) {
         newActiveSide = "left";
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
       else if (activeSide === "left") {
         newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
         newRight = currentTrack;
       } else {
         newActiveSide = "left";
         newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isSameAlbum ? null : nextTrack;
+        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
       }
 
       if (newActiveSide !== activeSide) setActiveSide(newActiveSide);
@@ -146,7 +170,18 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
       }).catch(console.error);
       return () => { mounted = false; };
     }
-  }, [playback.current?.uri, playback.next?.uri, nextUniqueTrack?.uri, settings.optimizeSingleAlbum, albumQueue]);
+  }, [
+    playback.current?.uri,
+    (playback.current as any)?.audioId,
+    playback.current?.name,
+    playback.next?.uri,
+    (playback.next as any)?.audioId,
+    playback.next?.name,
+    playback.isPlaying,
+    nextUniqueTrack?.uri,
+    settings.optimizeSingleAlbum,
+    albumQueue,
+  ]);
 
   const customization = useActiveCustomization(playback.current, background);
   const artworkPalette = useArtworkPalette(playback.current?.imageUrl);
@@ -157,10 +192,6 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     "--ambient-rgb": `${red}, ${green}, ${blue}`,
     "--visualizer-rgb": visualizerRgb,
   } as CSSProperties;
-
-  const [animatedTrack, setAnimatedTrack] = useState<Track | null>(null);
-  const [animatedSide, setAnimatedSide] = useState<"left" | "right" | null>(null);
-  const [animatedRecord, setAnimatedRecord] = useState<Collection | null>(null);
 
   const currentSleeveNode = playback.current?.imageUrl && (
     <div className="dj-stand-sleeve">
@@ -211,16 +242,32 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
       
       setTimeout(() => {
         if (isPlay) {
+          setActiveSide(targetSide);
+          setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
+          if (animatedSide === targetSide || isPlay) {
+            setAnimatedTrack(null);
+            setAnimatedSide(null);
+            setAnimatedRecord(null);
+          }
           if (onPlayTrack) onPlayTrack(track, record.tracks || []);
         } else {
+          setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
           if (onQueueAlbum) onQueueAlbum(record.tracks || []);
         }
         setFlyingRecord(null);
       }, 1500);
     } else {
       if (isPlay) {
+        setActiveSide(targetSide);
+        setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
+        if (animatedSide === targetSide || isPlay) {
+          setAnimatedTrack(null);
+          setAnimatedSide(null);
+          setAnimatedRecord(null);
+        }
         if (onPlayTrack) onPlayTrack(track, record.tracks || []);
       } else {
+        setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
         if (onQueueAlbum) onQueueAlbum(record.tracks || []);
       }
       setInspectingCollection(null);
@@ -233,7 +280,8 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
   }
 
   function handleQueueFromInline(record: import("../lib/collections").Collection) {
-    flyRecordToTurntable(record.tracks?.[0], record, false);
+    const isPlaying = Boolean(playback.isPlaying || playback.current);
+    flyRecordToTurntable(record.tracks?.[0], record, !isPlaying);
   }
 
   function handleAnimateFromInline(record: import("../lib/collections").Collection) {
@@ -268,12 +316,14 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
         setAnimatedTrack(track);
         setAnimatedSide(targetSide);
         setAnimatedRecord(record);
+        setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
         setFlyingRecord(null);
       }, 1500);
     } else {
       setAnimatedTrack(track);
       setAnimatedSide(targetSide);
       setAnimatedRecord(record);
+      setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
       setInspectingCollection(null);
       pageContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -311,11 +361,11 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
   const leftTrack = animatedSide === "left" && animatedTrack ? animatedTrack : deckTracks.left;
   const rightTrack = animatedSide === "right" && animatedTrack ? animatedTrack : deckTracks.right;
 
-  const leftVinylColor = (animatedSide === "left" && animatedRecord)
+  const leftVinylColor = (animatedSide === "left" && animatedRecord && isSameTrack(leftTrack, animatedTrack))
     ? (animatedRecord.customization?.vinylColor || null)
     : (leftTrack ? findMatchingCollection(leftTrack, collections)?.customization?.vinylColor || null : null);
 
-  const rightVinylColor = (animatedSide === "right" && animatedRecord)
+  const rightVinylColor = (animatedSide === "right" && animatedRecord && isSameTrack(rightTrack, animatedTrack))
     ? (animatedRecord.customization?.vinylColor || null)
     : (rightTrack ? findMatchingCollection(rightTrack, collections)?.customization?.vinylColor || null : null);
 
@@ -344,12 +394,26 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
   const leftVerticalSleeve = createSleeveNode(leftDeckImage, (animatedSide === "left" ? animatedTrack?.name : deckTracks.left?.name) || playback.current?.name);
   const rightVerticalSleeve = createSleeveNode(rightDeckImage, (animatedSide === "right" ? animatedTrack?.name : deckTracks.right?.name) || nextUniqueTrack?.name || playback.next?.name || playback.current?.name);
 
+  const isLeftTrackActive = isSameTrack(deckTracks.left, playback.current);
+  const isRightTrackActive = isSameTrack(deckTracks.right, playback.current);
+
+  const isLeftActive = (playback.isPlaying && (
+    isLeftTrackActive || (activeSide === "left" && !isRightTrackActive)
+  )) || (animatedSide === "left" && !!animatedTrack);
+
+  const isRightActive = (playback.isPlaying && (
+    isRightTrackActive || (activeSide === "right" && !isLeftTrackActive)
+  )) || (animatedSide === "right" && !!animatedTrack);
+
+  const isLeftAppPlaying = isLeftActive || (playback.isPlaying && isLeftTrackActive);
+  const isRightAppPlaying = isRightActive || (playback.isPlaying && isRightTrackActive);
+
   const leftTurntableBattle = (
     <div className="turntable-battle-wrapper is-battle">
       <DjTurntable 
         track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
-        isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
-        isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
+        isActive={isLeftActive} 
+        isAppPlaying={isLeftAppPlaying}
         align="left" 
         theme={currentTurntableTheme}
         isDark={settings.isDark}
@@ -365,8 +429,8 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
     <div className="turntable-battle-wrapper is-battle">
       <DjTurntable 
         track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
-        isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
-        isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
+        isActive={isRightActive} 
+        isAppPlaying={isRightAppPlaying}
         align="right" 
         theme={currentTurntableTheme}
         isDark={settings.isDark}
@@ -461,8 +525,8 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
               {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.left || animatedSide === "left" || (!deckTracks.left && !deckTracks.right && activeSide === "left")) && (
                 <DjTurntable 
                   track={deckTracks.left || (animatedSide === "left" ? animatedTrack : null)} 
-                  isActive={(activeSide === "left" && playback.isPlaying) || (animatedSide === "left" && !!animatedTrack)} 
-                  isAppPlaying={playback.isPlaying || (animatedSide === "left" && !!animatedTrack)}
+                  isActive={isLeftActive} 
+                  isAppPlaying={isLeftAppPlaying}
                   align="left" 
                   theme={currentTurntableTheme}
                   isDark={settings.isDark}
@@ -482,8 +546,8 @@ export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPre
               {(!settings.optimizeSingleAlbum || settings.singleAlbumLayout === "dual" || deckTracks.right || animatedSide === "right" || (!deckTracks.left && !deckTracks.right && activeSide === "right")) && (
                 <DjTurntable 
                   track={deckTracks.right || (animatedSide === "right" ? animatedTrack : null)} 
-                  isActive={(activeSide === "right" && playback.isPlaying) || (animatedSide === "right" && !!animatedTrack)} 
-                  isAppPlaying={playback.isPlaying || (animatedSide === "right" && !!animatedTrack)}
+                  isActive={isRightActive} 
+                  isAppPlaying={isRightAppPlaying}
                   align="right" 
                   theme={currentTurntableTheme}
                   isDark={settings.isDark}

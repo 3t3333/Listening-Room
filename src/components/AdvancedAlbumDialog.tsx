@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { SlidersHorizontal, ImagePlus, Trash2, Palette, Disc3, Check, Crop } from "lucide-react";
+import { SlidersHorizontal, ImagePlus, Trash2, Palette, Disc3, Check, Crop, ListMusic } from "lucide-react";
 import type { Collection, CollectionCustomization } from "../lib/collections";
 import { updateCollectionCustomization } from "../lib/collections";
 import { saveAlbumBackground, deleteAlbumBackground, getAlbumBackgroundUrl } from "../lib/mp3Storage";
 import { VINYL_COLOR_PRESETS, getVinylColorStyle } from "../lib/vinylColors";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
+import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
 
 interface Props {
   open: boolean;
@@ -44,9 +45,12 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
 
   const [vinylColor, setVinylColor] = useState<string | null>(initialCustomization.vinylColor || null);
   const [isSaving, setIsSaving] = useState(false);
+  const [tracklistEditorOpen, setTracklistEditorOpen] = useState(false);
+  const [currentRecord, setCurrentRecord] = useState<Collection>(record);
 
   useEffect(() => {
     if (open) {
+      setCurrentRecord(record);
       const cust = record.customization || {};
       setHasBg(!!cust.hasCustomBackground);
       setBgOpacity(cust.backgroundOpacity ?? 0.45);
@@ -498,7 +502,47 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
             </div>
           </div>
 
+          {/* 4. Tracklist & Vinyl Sides (MP3 Albums) */}
+          {record.format === "mp3" && (
+            <div className="advanced-section" style={{ background: 'rgba(255,255,255,0.03)', padding: '18px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <ListMusic size={18} style={{ color: '#00d26a' }} />
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', color: '#f1eee7' }}>Tracklist & Vinyl Sides</h3>
+                    <p style={{ margin: '3px 0 0 0', fontSize: '12px', color: '#888' }}>
+                      Reorder tracks, swap Side A and Side B, or reset to original import order.
+                    </p>
+                  </div>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setTracklistEditorOpen(true)}
+                  style={{ gap: '6px', fontSize: '12px' }}
+                >
+                  <SlidersHorizontal size={14} />
+                  Edit Tracklist
+                </Button>
+              </div>
+            </div>
+          )}
+
         </div>
+
+        {tracklistEditorOpen && (
+          <Mp3TracklistEditorDialog
+            open={tracklistEditorOpen}
+            onOpenChange={setTracklistEditorOpen}
+            record={currentRecord}
+            onSaved={(updatedTracks) => {
+              setCurrentRecord((prev) => ({ ...prev, tracks: updatedTracks }));
+              if (onSaved) {
+                onSaved({ ...currentRecord, tracks: updatedTracks });
+              }
+            }}
+          />
+        )}
 
         {/* Footer actions */}
         <div style={{ display: 'flex', gap: '12px', marginTop: '24px', justifyContent: 'flex-end' }}>

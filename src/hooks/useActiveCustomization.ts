@@ -40,43 +40,41 @@ export function findMatchingCollection(currentTrack: Track | null, collections: 
   );
 
   const trackMatches = (t: Track) => {
-    if (t.audioId && currentTrack.audioId && t.audioId === currentTrack.audioId) return true;
-    if (t.uri && currentTrack.uri && t.uri === currentTrack.uri) return true;
+    // 1. Exact audioId match for MP3 tracks
+    if (t.audioId && currentTrack.audioId) {
+      return t.audioId === currentTrack.audioId;
+    }
+    // 2. Exact URI match (Spotify or mp3 uri)
+    if (t.uri && currentTrack.uri) {
+      return t.uri === currentTrack.uri;
+    }
+    // If one has audioId/uri and the other has a different one, they are not the same track
+    if ((t.audioId && currentTrack.audioId && t.audioId !== currentTrack.audioId) ||
+        (t.uri && currentTrack.uri && t.uri !== currentTrack.uri)) {
+      return false;
+    }
+    // 3. Exact track name and artist match
     if (
       t.name &&
       currentTrack.name &&
-      t.name.toLowerCase() === currentTrack.name.toLowerCase() &&
       t.artist &&
       currentTrack.artist &&
-      t.artist.toLowerCase() === currentTrack.artist.toLowerCase()
+      t.name.trim().toLowerCase() === currentTrack.name.trim().toLowerCase() &&
+      t.artist.trim().toLowerCase() === currentTrack.artist.trim().toLowerCase()
     ) {
-      return true;
-    }
-    if (t.imageUrl && currentTrack.imageUrl && t.imageUrl === currentTrack.imageUrl) {
       return true;
     }
     return false;
   };
 
-  // 1. Prioritize matching albums that have customization defined
-  const customizedMatch = albumCollections.find(
-    (col) =>
-      col.customization &&
-      (col.customization.hasCustomBackground ||
-        col.customization.vinylColor ||
-        col.customization.equalizerCustomColor) &&
-      col.tracks.some(trackMatches)
-  );
-  if (customizedMatch) return customizedMatch;
-
-  // 2. Fallback: match any record album
+  // 1. Prioritize record albums (the physical vinyl records in the user's shelf)
   const recordMatch = albumCollections.find(
-    (col) => col.type === "record" && col.tracks.some(trackMatches)
+    (col) => col.type === "record" && col.tracks?.some(trackMatches)
   );
   if (recordMatch) return recordMatch;
 
-  // 3. Fallback: match any candidate collection
-  return albumCollections.find((col) => col.tracks.some(trackMatches)) || null;
+  // 2. Fallback: match any other candidate collection (playlists, custom sets)
+  return albumCollections.find((col) => col.tracks?.some(trackMatches)) || null;
 }
 
 export function useActiveCustomization(

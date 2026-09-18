@@ -8,6 +8,7 @@ import { mp3Player } from "../lib/mp3Player";
 import { getVinylColorStyle } from "../lib/vinylColors";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { AdvancedAlbumDialog } from "./AdvancedAlbumDialog";
+import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
 
 interface Props {
   record: Collection;
@@ -21,6 +22,7 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
   const [djSettings] = useDjSettings();
   const [currentRecord, setCurrentRecord] = useState<Collection>(record);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+  const [tracklistEditorOpen, setTracklistEditorOpen] = useState(false);
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
   const [hasOpened, setHasOpened] = useState(false);
 
@@ -145,6 +147,12 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
                     <Trash2 size={16} style={{ marginRight: '6px' }} />
                     Remove
                   </Button>
+                  {currentRecord.format === "mp3" && (
+                    <Button variant="outline" onClick={() => setTracklistEditorOpen(true)} style={{ flex: 1 }}>
+                      <SlidersHorizontal size={15} style={{ marginRight: '6px' }} />
+                      Edit Tracks
+                    </Button>
+                  )}
                 </div>
                 {djSettings.enableAdvancedAlbumEditing && (
                   <Button 
@@ -159,7 +167,21 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
             </div>
           ) : (
             <div className="record-tracks-panel fade-in">
-              <h3>{side === "side-a" ? "Side A" : "Side B"}</h3>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <h3 style={{ margin: 0 }}>{side === "side-a" ? "Side A" : "Side B"}</h3>
+                {currentRecord.format === "mp3" && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setTracklistEditorOpen(true)}
+                    style={{ fontSize: '11px', height: '26px', padding: '0 8px', gap: '5px' }}
+                    title="Edit track order, flip sides, or reverse tracks"
+                  >
+                    <SlidersHorizontal size={12} />
+                    Edit Tracks
+                  </Button>
+                )}
+              </div>
               <ul className="record-tracklist">
                 {currentTracks.map((track, i) => (
                   <li key={i} onClick={() => handlePlay(track)}>
@@ -235,6 +257,17 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
         record={currentRecord} 
         onSaved={(updated) => setCurrentRecord(updated)} 
       />
+
+      {tracklistEditorOpen && (
+        <Mp3TracklistEditorDialog
+          open={tracklistEditorOpen}
+          onOpenChange={setTracklistEditorOpen}
+          record={currentRecord}
+          onSaved={(updatedTracks) => {
+            setCurrentRecord((prev) => ({ ...prev, tracks: updatedTracks }));
+          }}
+        />
+      )}
     </div>
   );
 }

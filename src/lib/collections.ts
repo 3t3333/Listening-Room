@@ -23,6 +23,7 @@ export interface Collection {
   artistImageUrl?: string | null;
   year?: number | null;
   tracks: Track[];
+  originalTracks?: Track[];
   updatedAt: string;
   customization?: CollectionCustomization;
 }
@@ -196,6 +197,45 @@ export function updateCollectionCustomization(collectionId: string, customizatio
   }
 }
 
+export function updateCollectionTracks(collectionId: string, newTracks: Track[]): boolean {
+  const collections = getCollections();
+  const index = collections.findIndex((c) => c.id === collectionId);
+  if (index === -1) return false;
+
+  const current = collections[index];
+  const originalTracks = current.originalTracks && current.originalTracks.length > 0
+    ? current.originalTracks
+    : [...current.tracks];
+
+  collections[index] = {
+    ...current,
+    tracks: newTracks,
+    originalTracks,
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveCollections(collections);
+  return true;
+}
+
+export function resetCollectionTracks(collectionId: string): boolean {
+  const collections = getCollections();
+  const index = collections.findIndex((c) => c.id === collectionId);
+  if (index === -1) return false;
+
+  const current = collections[index];
+  if (!current.originalTracks || current.originalTracks.length === 0) return false;
+
+  collections[index] = {
+    ...current,
+    tracks: [...current.originalTracks],
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveCollections(collections);
+  return true;
+}
+
 function trackKey(track: Track) {
   return track.uri ?? `${track.name}\u0000${track.artist}`;
 }
@@ -203,7 +243,8 @@ function trackKey(track: Track) {
 function saveCollections(collections: Collection[]) {
   const safeCollections = collections.map(c => ({
     ...c,
-    tracks: c.tracks.map(unmapTrackArtwork)
+    tracks: c.tracks.map(unmapTrackArtwork),
+    originalTracks: c.originalTracks ? c.originalTracks.map(unmapTrackArtwork) : undefined,
   }));
   localStorage.setItem(storageKey, JSON.stringify(safeCollections));
   window.dispatchEvent(new CustomEvent("collections:changed", { detail: safeCollections }));

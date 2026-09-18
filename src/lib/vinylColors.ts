@@ -31,19 +31,33 @@ export function adjustBrightness(hex: string, amount: number): string {
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
+export function isCustomVinylColor(vinylColor?: string | null): boolean {
+  if (!vinylColor) return false;
+  const c = vinylColor.trim().toLowerCase();
+  return c !== "#121212" && c !== "#000000" && c !== "#111111";
+}
+
 export function getVinylColorStyle(vinylColor?: string | null): CSSProperties {
-  if (!vinylColor || vinylColor.toLowerCase() === "#121212" || vinylColor.toLowerCase() === "#000000") {
-    return {};
+  if (!isCustomVinylColor(vinylColor)) {
+    return {
+      "--vinyl-color": "#121212",
+      "--vinyl-color-light": "#171717",
+      "--vinyl-color-dark": "#090909",
+      "--vinyl-color-runout": "#111111",
+      "--vinyl-bg": "radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%)",
+      background: "radial-gradient(circle, #171717 0 2.7%, #090909 3.2% 20%, #171717 20.4% 20.8%, #080808 21.2% 100%)",
+    } as CSSProperties;
   }
-  const light = adjustBrightness(vinylColor, 35);
-  const dark = adjustBrightness(vinylColor, -40);
-  const runout = adjustBrightness(vinylColor, -20);
+  const cleanColor = vinylColor!.trim();
+  const light = adjustBrightness(cleanColor, 35);
+  const dark = adjustBrightness(cleanColor, -40);
+  const runout = adjustBrightness(cleanColor, -20);
   return {
-    "--vinyl-color": vinylColor,
+    "--vinyl-color": cleanColor,
     "--vinyl-color-light": light,
     "--vinyl-color-dark": dark,
     "--vinyl-color-runout": runout,
-    "--vinyl-bg": `radial-gradient(circle, ${light} 0 2.7%, ${dark} 3.2% 20%, ${light} 20.4% 20.8%, ${vinylColor} 21.2% 100%)`,
-    background: `radial-gradient(circle, ${light} 0%, ${vinylColor} 55%, ${dark} 100%)`,
+    "--vinyl-bg": `radial-gradient(circle, ${light} 0 2.7%, ${dark} 3.2% 20%, ${light} 20.4% 20.8%, ${cleanColor} 21.2% 100%)`,
+    background: `radial-gradient(circle, ${light} 0%, ${cleanColor} 55%, ${dark} 100%)`,
   } as CSSProperties;
 }

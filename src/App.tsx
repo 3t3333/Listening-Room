@@ -135,6 +135,12 @@ export function App() {
 
   function handleQueueAlbum(tracks: Track[]) {
     if (djSettings.queueAlbumsSequentially) {
+      const isPlaying = mp3State.current ? mp3State.isPlaying : playback.isPlaying;
+      const hasCurrent = Boolean(mp3State.current || playback.current);
+      if (!isPlaying && !hasCurrent) {
+        void playCollectedTrack(tracks[0], tracks);
+        return;
+      }
       setAlbumQueue((q) => [...q, tracks]);
     } else {
       // Fallback to queueing all tracks
@@ -344,9 +350,23 @@ export function App() {
 
   const isAtEndOfCurrentAlbum = useCallback((currentTrack: Track | null): boolean => {
     const album = currentAlbumRef.current;
-    if (!album || album.length === 0 || !currentTrack) return false;
+    if (!album || album.length === 0) return true;
+    if (!currentTrack) return true;
     const lastTrack = album[album.length - 1];
-    return isSameTrack(currentTrack, lastTrack);
+    if (isSameTrack(currentTrack, lastTrack)) return true;
+    if (
+      currentTrack.name &&
+      lastTrack.name &&
+      currentTrack.name.toLowerCase().includes(lastTrack.name.toLowerCase()) &&
+      currentTrack.artist &&
+      lastTrack.artist &&
+      currentTrack.artist.toLowerCase().includes(lastTrack.artist.toLowerCase())
+    ) {
+      return true;
+    }
+    const idx = album.findIndex((t) => isSameTrack(t, currentTrack));
+    if (idx >= 0 && idx === album.length - 1) return true;
+    return false;
   }, []);
 
   const playNextQueuedAlbum = useCallback(() => {
@@ -381,6 +401,12 @@ export function App() {
         active: true,
         isPlaying: mp3State.isPlaying,
         current: mp3State.current,
+        next: mp3State.collection.length > 0
+          ? (() => {
+              const idx = mp3State.collection.findIndex((t) => isSameTrack(t, mp3State.current));
+              return idx >= 0 && idx < mp3State.collection.length - 1 ? mp3State.collection[idx + 1] : null;
+            })()
+          : basePlayback.next,
         volumePercent: Math.round(mp3State.volume * 100),
         canPlay: true,
         canPause: true,
@@ -398,9 +424,9 @@ export function App() {
       return;
     }
 
-    const isEnd = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
-    const finishedNaturally = wasPlaying && !isCurrentlyPlaying && !userPausedRef.current && isEnd;
-    const idleAtEnd = !isCurrentlyPlaying && isEnd && !userPausedRef.current;
+    const isEndOfAlbum = !activePlayback.current || isAtEndOfCurrentAlbum(activePlayback.current);
+    const finishedNaturally = wasPlaying && !isCurrentlyPlaying && !userPausedRef.current;
+    const idleAtEnd = !isCurrentlyPlaying && isEndOfAlbum && !userPausedRef.current;
 
     if (finishedNaturally || idleAtEnd) {
       playNextQueuedAlbum();
@@ -444,18 +470,27 @@ export function App() {
         return;
       }
       if (mp3State.current && !mp3State.isPlaying) {
+        const isMp3TrackDone = mp3State.duration > 0 && mp3State.currentTime >= mp3State.duration - 0.5;
+        if (albumQueue.length > 0 && isMp3TrackDone) {
+          userPausedRef.current = false;
+          playNextQueuedAlbum();
+          return;
+        }
         userPausedRef.current = false;
         mp3Player.resume();
         return;
       }
 
-      // 2. If playback is paused at the end of an album
+      // 2. If playback is paused / stopped and we have a queued album waiting, play it!
+      if (!activePlayback.isPlaying && albumQueue.length > 0) {
+        userPausedRef.current = false;
+        playNextQueuedAlbum();
+        return;
+      }
+
+      // 3. If playback is paused at the end of an album with no queue, restart it
       const isEnd = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
       if (!activePlayback.isPlaying && isEnd) {
-        if (albumQueue.length > 0) {
-          playNextQueuedAlbum();
-          return;
-        }
         if (currentAlbumRef.current && currentAlbumRef.current.length > 0) {
           userPausedRef.current = false;
           void playCollectedTrack(currentAlbumRef.current[0], currentAlbumRef.current);
@@ -463,7 +498,7 @@ export function App() {
         }
       }
 
-      // 3. Normal Spotify play/pause
+      // 4. Normal Spotify play/pause
       userPausedRef.current = playback.isPlaying;
       void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying);
     },

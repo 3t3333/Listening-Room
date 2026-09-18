@@ -358,6 +358,17 @@ class Mp3PlayerService {
     }
   }
 
+  public updateCollectionQueue(updatedTracks: Track[]): void {
+    if (!this.currentTrack || !this.currentCollection.length) return;
+    const hasCurrent = updatedTracks.some(
+      (t) => (t as any).audioId === (this.currentTrack as any)?.audioId || (t.uri && t.uri === this.currentTrack?.uri)
+    );
+    if (hasCurrent) {
+      this.currentCollection = [...updatedTracks];
+      this.emitState();
+    }
+  }
+
   public seek(seconds: number): void {
     this.audio.currentTime = seconds;
   }
