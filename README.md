@@ -63,7 +63,7 @@ Browse your collection naturally with the **3D Spine Shelf**, an authentic woode
 
 ## First Run Guide
 
-1. **Install & Launch**: Download and run `Listening Room_1.0.0_x64-setup.exe` from the latest release.
+1. **Install & Launch**: Download and run `Listening.Room_0.2.0_x64-setup.exe` from the latest release.
 2. **Connect Spotify (Optional)**: Click **Connect Spotify**, complete authorization in the browser popup, and select **Listening Room** as your target device from any official Spotify app.
 3. **Import Local MP3s**: Click the **Library** button, select **Create MP3 Record**, and drop your audio files and cover art to build digital records.
 4. **Choose a Theme**: Use the theme switcher in the header to jump between *Warm Room*, *Midnight Mix*, *Visualizer Stand*, *Archive Room*, and *DJ Setup*.

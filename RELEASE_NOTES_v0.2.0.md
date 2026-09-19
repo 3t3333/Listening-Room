@@ -1,12 +1,12 @@
-# Listening Room v1.0.0 Release Notes 🎉
+# Listening Room v0.2.0 Release Notes 🎉
 
-Welcome to the official **v1.0.0 milestone release** of **Listening Room**! What began as an experimental desktop concept has evolved into a full-fledged spatial music workstation, digital vinyl archive, and high-fidelity visualizer.
+Welcome to the official **v0.2.0 release** of **Listening Room**! What began as an experimental desktop concept has evolved into a full-fledged spatial music workstation, digital vinyl archive, and high-fidelity visualizer.
 
 This release consolidates months of architectural enhancements, performance optimizations, and tactile audio features into our first major production release.
 
 ---
 
-## What's New in v1.0.0
+## What's New in v0.2.0
 
 ### 🎧 1. Spatial Listening Themes & Dual-Deck DJ Rig
 - **5 Complete Visual Themes**: *Warm Room*, *Midnight Mix*, *Visualizer Stand*, *Archive Room*, and the flagship *DJ Setup*.
@@ -47,6 +47,6 @@ This release consolidates months of architectural enhancements, performance opti
 
 ## Installation & Upgrading
 Download and run the installer:
-- **`Listening Room_1.0.0_x64-setup.exe`**
+- **`Listening.Room_0.2.0_x64-setup.exe`**
 
 *Requires 64-bit Windows 10 or Windows 11. Spotify Premium required for Spotify Connect playback; local MP3 playback requires no account.*
