@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Track } from "../lib/player";
 import { getCollections, defaultCollectionId, recentCollectionId, type Collection, type CollectionCustomization } from "../lib/collections";
 import { getAlbumBackgroundUrl } from "../lib/mp3Storage";
+import { isVideoMedia } from "../lib/liveWallpaper";
 
 export interface ActiveCustomization {
   activeCollection: Collection | null;
@@ -11,6 +12,9 @@ export interface ActiveCustomization {
   effectivePositionY: number;
   effectiveFit: "cover" | "contain";
   effectiveZoom: number;
+  effectivePalette?: { primary: [number, number, number]; accent: [number, number, number] } | null;
+  effectiveSchedule?: import("../lib/liveWallpaper").AmbientColorScheduleEntry[] | null;
+  effectiveMediaType?: "image" | "video";
   customVisualizerRgb: string | null;
   vinylColor: string | null;
 }
@@ -104,27 +108,20 @@ export function useActiveCustomization(
 
   useEffect(() => {
     let cancelled = false;
-    let objectUrlToRevoke: string | null = null;
 
-    if (activeCollection && customization?.hasCustomBackground) {
+    if (activeCollection?.id && customization?.hasCustomBackground) {
       getAlbumBackgroundUrl(activeCollection.id).then((url) => {
         if (!cancelled) {
-          objectUrlToRevoke = url;
-          setAlbumBgUrl(url);
-        } else if (url) {
-          URL.revokeObjectURL(url);
+          setAlbumBgUrl((prev) => (prev === url ? prev : url));
         }
       });
     } else {
-      setAlbumBgUrl(null);
+      setAlbumBgUrl((prev) => (prev === null ? prev : null));
     }
     return () => {
       cancelled = true;
-      if (objectUrlToRevoke) {
-        URL.revokeObjectURL(objectUrlToRevoke);
-      }
     };
-  }, [activeCollection?.id, customization?.hasCustomBackground, collections]);
+  }, [activeCollection?.id, customization?.hasCustomBackground]);
 
   const hasAlbumBg = !!(customization?.hasCustomBackground && albumBgUrl);
   const effectiveImageUrl = hasAlbumBg ? albumBgUrl : globalBackground.imageUrl;
@@ -151,6 +148,18 @@ export function useActiveCustomization(
 
   const vinylColor = customization?.vinylColor || null;
 
+  const effectivePalette = hasAlbumBg
+    ? (customization?.backgroundPalette || null)
+    : (globalBackground as any)?.palette || null;
+
+  const effectiveSchedule = hasAlbumBg
+    ? (customization?.backgroundSchedule || null)
+    : (globalBackground as any)?.schedule || null;
+
+  const effectiveMediaType = hasAlbumBg
+    ? (customization?.backgroundMediaType || (isVideoMedia(effectiveImageUrl) ? "video" : "image"))
+    : (isVideoMedia(effectiveImageUrl) ? "video" : "image");
+
   return {
     activeCollection,
     effectiveImageUrl,
@@ -159,6 +168,9 @@ export function useActiveCustomization(
     effectivePositionY,
     effectiveFit,
     effectiveZoom,
+    effectivePalette,
+    effectiveSchedule,
+    effectiveMediaType,
     customVisualizerRgb,
     vinylColor,
   };

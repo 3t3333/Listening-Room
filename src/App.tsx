@@ -5,12 +5,12 @@ import { BackgroundSettingsDialog } from "./components/BackgroundSettingsDialog"
 import { ThemeIndicator } from "./components/ThemeIndicator";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { Button } from "./components/ui/button";
-import { useArtworkPalette } from "./hooks/useArtworkColor";
+import { useArtworkPalette, type ArtworkPalette } from "./hooks/useArtworkColor";
 import { useCustomBackground } from "./hooks/useCustomBackground";
 import { useActiveCustomization } from "./hooks/useActiveCustomization";
 import { useTheme } from "./hooks/useTheme";
 import { useDjSettings } from "./hooks/useDjSettings";
-import { defaultCollectionId, getCollections, recordRecentlyPlayed } from "./lib/collections";
+import { defaultCollectionId, getCollections, recordRecentlyPlayed, initMp3Artwork } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
 import { mapTrackArtwork } from "./lib/customArtwork";
 import { mp3Player, type Mp3PlaybackState } from "./lib/mp3Player";
@@ -92,6 +92,10 @@ export function App() {
       document.documentElement.classList.remove("vinyl-style-classic");
     }
   }, [djSettings.vinylDiscStyle]);
+
+  useEffect(() => {
+    void initMp3Artwork();
+  }, []);
 
   useEffect(() => {
     function handleMp3Changed(e: Event) {
@@ -441,7 +445,26 @@ export function App() {
   ]);
 
   const activeCustomization = useActiveCustomization(activePlayback.current, customBackground);
-  const backgroundPalette = useArtworkPalette(activeCustomization.effectiveImageUrl);
+  const staticArtworkPalette = useArtworkPalette(
+    activeCustomization.effectiveMediaType === "video" ? null : activeCustomization.effectiveImageUrl
+  );
+  const [dynamicPalette, setDynamicPalette] = useState<ArtworkPalette | null>(null);
+
+  useEffect(() => {
+    function handleDynamicColor(e: any) {
+      if (e.detail?.primary && e.detail?.accent) {
+        setDynamicPalette({ primary: e.detail.primary, accent: e.detail.accent });
+      }
+    }
+    window.addEventListener("livewallpaper:dynamic-color", handleDynamicColor);
+    return () => window.removeEventListener("livewallpaper:dynamic-color", handleDynamicColor);
+  }, []);
+
+  useEffect(() => {
+    setDynamicPalette(null);
+  }, [activeCustomization.effectiveImageUrl]);
+
+  const backgroundPalette = dynamicPalette || activeCustomization.effectivePalette || staticArtworkPalette;
 
   const statusLabel = playback.status === "connecting"
     ? "Connecting to Spotify..."
@@ -452,6 +475,8 @@ export function App() {
   const themeProps: ThemeProps = {
     playback: activePlayback,
     albumQueue,
+    customVisualizerRgb: activeCustomization.customVisualizerRgb,
+    vinylColor: activeCustomization.vinylColor,
     background: {
       imageUrl: activeCustomization.effectiveImageUrl,
       opacity: activeCustomization.effectiveOpacity,
@@ -461,6 +486,9 @@ export function App() {
       positionY: activeCustomization.effectivePositionY,
       fit: activeCustomization.effectiveFit,
       zoom: activeCustomization.effectiveZoom,
+      pauseVideoOnMusicPause: customBackground.pauseVideoOnMusicPause,
+      schedule: activeCustomization.effectiveSchedule,
+      customVisualizerRgb: activeCustomization.customVisualizerRgb,
     },
     onToggle: () => {
       // 1. If currently playing MP3, toggle pause/play

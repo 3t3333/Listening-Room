@@ -1,13 +1,22 @@
 import { useState, useEffect, useRef, type ChangeEvent } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
-import { SlidersHorizontal, ImagePlus, Trash2, Palette, Disc3, Check, Crop, ListMusic } from "lucide-react";
+import { SlidersHorizontal, ImagePlus, Trash2, Palette, Disc3, Check, Crop, ListMusic, Loader2 } from "lucide-react";
 import type { Collection, CollectionCustomization } from "../lib/collections";
 import { updateCollectionCustomization } from "../lib/collections";
 import { saveAlbumBackground, deleteAlbumBackground, getAlbumBackgroundUrl } from "../lib/mp3Storage";
 import { VINYL_COLOR_PRESETS, getVinylColorStyle } from "../lib/vinylColors";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
 import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
+import {
+  isVideoMedia,
+  registerMediaBlob,
+  validateVideoDuration,
+  scanVideoPalette,
+  type LiveWallpaperColorScanMode,
+  type AmbientColorScheduleEntry,
+} from "../lib/liveWallpaper";
+import type { ArtworkPalette } from "../hooks/useArtworkColor";
 
 interface Props {
   open: boolean;
@@ -37,6 +46,12 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
   const [bgPositionY, setBgPositionY] = useState(initialCustomization.backgroundPositionY ?? 50);
   const [bgFit, setBgFit] = useState<"cover" | "contain">(initialCustomization.backgroundFit || "cover");
   const [bgZoom, setBgZoom] = useState(initialCustomization.backgroundZoom ?? 100);
+  const [bgMediaType, setBgMediaType] = useState<"image" | "video">(initialCustomization.backgroundMediaType || "image");
+  const [bgScanMode, setBgScanMode] = useState<LiveWallpaperColorScanMode>(initialCustomization.backgroundColorScanMode || "si5");
+  const [bgPalette, setBgPalette] = useState<ArtworkPalette | undefined>(initialCustomization.backgroundPalette);
+  const [bgSchedule, setBgSchedule] = useState<AmbientColorScheduleEntry[] | undefined>(initialCustomization.backgroundSchedule);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<number | null>(null);
   const [framingOpen, setFramingOpen] = useState(false);
   const [isRemovingBg, setIsRemovingBg] = useState(false);
 
@@ -74,25 +89,56 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
     }
   }, [open, record.id]);
 
-  function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
+  async function handleFileSelect(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const validTypes = ["image/png", "image/jpeg", "image/jpg", "image/webp", "image/avif"];
-    const validExts = [".png", ".jpg", ".jpeg", ".webp", ".avif"];
-    const fileName = file.name.toLowerCase();
-    const isValid = validTypes.includes(file.type) || validExts.some(ext => fileName.endsWith(ext));
+    const isVideo = isVideoMedia(file.name, file.type);
+    const isImage = file.type.startsWith("image/") || file.name.toLowerCase().endsWith(".gif");
 
-    if (!isValid) {
-      alert("Please choose a valid image (PNG, JPG, JPEG, WEBP, or AVIF) for the custom album background.");
+    if (!isVideo && !isImage) {
+      alert("Please choose a valid image (PNG, JPG, WEBP, GIF) or video (MP4, WebM, MOV) for the custom album background.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
+    }
+
+    let scannedPalette: ArtworkPalette | undefined = undefined;
+    let scannedSchedule: AmbientColorScheduleEntry[] | undefined = undefined;
+
+    if (isVideo) {
+      setIsScanning(true);
+      setScanProgress(0);
+      try {
+        await validateVideoDuration(file, 60);
+        const result = await scanVideoPalette(file, bgScanMode, (pct) => setScanProgress(pct));
+        scannedPalette = result.palette;
+        scannedSchedule = result.schedule;
+        setBgMediaType("video");
+        setBgPalette(scannedPalette);
+        setBgSchedule(scannedSchedule);
+      } catch (err: any) {
+        if (err?.message !== "Video upload cancelled by user.") {
+          alert(err?.message || "Failed to process video wallpaper.");
+        }
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        setIsScanning(false);
+        setScanProgress(null);
+        return;
+      } finally {
+        setIsScanning(false);
+        setScanProgress(null);
+      }
+    } else {
+      setBgMediaType("image");
+      setBgPalette(undefined);
+      setBgSchedule(undefined);
     }
 
     setBgBlob(file);
     setHasBg(true);
     setIsRemovingBg(false);
     const objectUrl = URL.createObjectURL(file);
+    registerMediaBlob(objectUrl, file.type);
     setBgPreviewUrl(objectUrl);
   }
 
@@ -101,6 +147,8 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
     setHasBg(false);
     setIsRemovingBg(true);
     setBgPreviewUrl(null);
+    setBgPalette(undefined);
+    setBgSchedule(undefined);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -120,6 +168,10 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
         backgroundPositionY: bgPositionY,
         backgroundFit: bgFit,
         backgroundZoom: bgZoom,
+        backgroundMediaType: bgMediaType,
+        backgroundColorScanMode: bgScanMode,
+        backgroundPalette: bgPalette,
+        backgroundSchedule: bgSchedule,
         equalizerColorMode: eqMode,
         equalizerCustomColor: eqMode === "custom" ? eqColor : null,
         vinylColor: vinylColor,
@@ -193,21 +245,49 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
                 }}
               >
                 {bgPreviewUrl ? (
-                  <img 
-                    src={bgPreviewUrl} 
-                    alt="Preview" 
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
-                      objectFit: bgFit || 'cover', 
-                      objectPosition: `${bgPositionX}% ${bgPositionY}%`,
-                      transform: bgZoom > 100 ? `scale(${bgZoom / 100})` : undefined,
-                      transformOrigin: `${bgPositionX}% ${bgPositionY}%`,
-                      opacity: bgOpacity 
-                    }} 
-                  />
+                  isVideoMedia(bgPreviewUrl) ? (
+                    <video 
+                      src={bgPreviewUrl} 
+                      autoPlay
+                      loop
+                      muted
+                      playsInline
+                      disablePictureInPicture
+                      disableRemotePlayback
+                      onTimeUpdate={(e) => {
+                        if (e.currentTarget.currentTime >= 60) {
+                          e.currentTarget.currentTime = 0;
+                        }
+                      }}
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: bgFit || 'cover', 
+                        objectPosition: `${bgPositionX}% ${bgPositionY}%`,
+                        transform: bgZoom > 100 ? `scale(${bgZoom / 100})` : undefined,
+                        transformOrigin: `${bgPositionX}% ${bgPositionY}%`,
+                        opacity: bgOpacity 
+                      }} 
+                    />
+                  ) : (
+                    <img 
+                      src={bgPreviewUrl} 
+                      alt="Preview" 
+                      style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: bgFit || 'cover', 
+                        objectPosition: `${bgPositionX}% ${bgPositionY}%`,
+                        transform: bgZoom > 100 ? `scale(${bgZoom / 100})` : undefined,
+                        transformOrigin: `${bgPositionX}% ${bgPositionY}%`,
+                        opacity: bgOpacity 
+                      }} 
+                    />
+                  )
                 ) : (
-                  <span style={{ fontSize: '11px', color: '#666', textAlign: 'center', padding: '6px' }}>No Image</span>
+                  <span style={{ fontSize: '11px', color: '#666', textAlign: 'center', padding: '6px' }}>
+                    {isScanning ? `Scanning (${scanProgress ?? 0}%)...` : "No Media"}
+                  </span>
                 )}
               </div>
 
@@ -215,17 +295,17 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
                 <input 
                   ref={fileInputRef} 
                   type="file" 
-                  accept="image/png,image/jpeg,image/jpg,image/webp,image/avif" 
+                  accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v,.gif,.mp4,.webm,.mov,.m4v" 
                   style={{ display: 'none' }} 
                   onChange={handleFileSelect} 
                 />
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} style={{ width: 'fit-content' }}>
-                    <ImagePlus size={14} style={{ marginRight: '6px' }} />
-                    {hasBg ? "Change Image" : "Upload Image"}
+                  <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isScanning} style={{ width: 'fit-content' }}>
+                    {isScanning ? <Loader2 size={14} className="animate-spin" style={{ marginRight: '6px' }} /> : <ImagePlus size={14} style={{ marginRight: '6px' }} />}
+                    {isScanning ? `Scanning (${scanProgress ?? 0}%)...` : hasBg ? "Change Media" : "Upload Media (Photo/Video)"}
                   </Button>
                   {hasBg && (
-                    <Button variant="outline" size="sm" onClick={() => setFramingOpen(true)} style={{ width: 'fit-content' }}>
+                    <Button variant="outline" size="sm" onClick={() => setFramingOpen(true)} disabled={isScanning} style={{ width: 'fit-content' }}>
                       <Crop size={14} style={{ marginRight: '6px' }} />
                       Crop & Framing
                     </Button>
@@ -282,6 +362,71 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
                   <Button variant="ghost" size="sm" onClick={() => setFramingOpen(true)} style={{ height: '22px', fontSize: '11px', color: 'var(--primary, #00d26a)', padding: '0 6px' }}>
                     Interactive Screen Cropper →
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Video Wallpaper Ambient Color Mode */}
+            {hasBg && isVideoMedia(bgPreviewUrl) && (
+              <div style={{ marginTop: '14px', padding: '12px 14px', background: 'rgba(0,0,0,0.25)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#eee' }}>Ambient Lighting Color Scan</span>
+                  <span style={{ fontSize: '11px', color: 'var(--primary, #00d26a)', fontWeight: 600 }}>
+                    {bgScanMode === "si5" ? "si5 (5ths Scan)" : bgScanMode === "first-frame" ? "First Frame" : "Dynamic Timed"}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setBgScanMode("si5")}
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: bgScanMode === "si5" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: bgScanMode === "si5" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: bgScanMode === "si5" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: bgScanMode === "si5" ? 600 : 400
+                    }}
+                  >
+                    si5 (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBgScanMode("first-frame")}
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: bgScanMode === "first-frame" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: bgScanMode === "first-frame" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: bgScanMode === "first-frame" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: bgScanMode === "first-frame" ? 600 : 400
+                    }}
+                  >
+                    First Frame
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBgScanMode("dynamic")}
+                    style={{
+                      flex: 1,
+                      padding: '6px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: bgScanMode === "dynamic" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: bgScanMode === "dynamic" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: bgScanMode === "dynamic" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: bgScanMode === "dynamic" ? 600 : 400
+                    }}
+                  >
+                    Dynamic Timed
+                  </button>
                 </div>
               </div>
             )}

@@ -710,6 +710,9 @@ button { font: inherit; }
   color: inherit;
   background: transparent;
   cursor: pointer;
+  contain: paint layout;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 .block-visualizer:focus-visible { outline: 1px solid #ffffffb8; outline-offset: 4px; }
 
@@ -974,10 +977,19 @@ button { font: inherit; }
   70% { box-shadow: 0 0 0 10px rgba(29, 185, 84, 0); }
   100% { box-shadow: 0 0 0 0 rgba(29, 185, 84, 0); }
 }
-/* DJ Page 5 — scrollable wrapper */
+/* DJ Page 5 — wrapper and scrollable container */
+.dj-theme-root {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
 .dj-page-container {
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.12) transparent;
+  isolation: isolate;
+  background: transparent;
 }
 .dj-page-container::-webkit-scrollbar {
   width: 5px;
@@ -1005,6 +1017,8 @@ button { font: inherit; }
   background: transparent;
   perspective: 1500px;
   flex-shrink: 0;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .dj-theme-toast {
@@ -1135,18 +1149,22 @@ button { font: inherit; }
 }
 
 /* Glass Variations for DJ Desk, Console, and Stands */
+.dj-desk {
+  isolation: isolate;
+  transform: translateZ(0);
+}
 .dj-desk.dj-theme-glass-clear {
   background: rgba(255, 255, 255, 0.14) !important;
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
   border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.35), inset 0 2px 8px rgba(255, 255, 255, 0.7) !important;
 }
 
 .dj-desk.dj-theme-glass-smoked {
   background: rgba(14, 16, 22, 0.58) !important;
-  backdrop-filter: blur(28px) saturate(1.2);
-  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
   border: 1.5px solid rgba(255, 255, 255, 0.15) !important;
   box-shadow: 0 40px 100px rgba(0, 0, 0, 0.8), inset 0 2px 8px rgba(255, 255, 255, 0.18) !important;
 }
@@ -1154,39 +1172,47 @@ button { font: inherit; }
 .dj-desk.dj-theme-glass-clear .dj-center-console,
 .dj-theme-glass-clear .dj-center-console {
   background: rgba(255, 255, 255, 0.22) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1.5px solid rgba(255, 255, 255, 0.5) !important;
   box-shadow: inset 0 0 15px rgba(255, 255, 255, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.3), 0 10px 30px rgba(0, 0, 0, 0.3) !important;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .dj-desk.dj-theme-glass-smoked .dj-center-console,
 .dj-theme-glass-smoked .dj-center-console {
   background: rgba(10, 12, 16, 0.65) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1.5px solid rgba(255, 255, 255, 0.18) !important;
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .dj-long-stand.dj-theme-glass-clear {
   background: rgba(255, 255, 255, 0.24) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.45) !important;
   box-shadow: 0 20px 45px rgba(0, 0, 0, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.8) !important;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 .dj-long-stand.dj-theme-glass-clear::before {
   background: rgba(255, 255, 255, 0.18) !important;
-  filter: blur(8px);
+  filter: blur(6px);
 }
 
 .dj-long-stand.dj-theme-glass-smoked {
   background: rgba(18, 20, 26, 0.65) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.16) !important;
   box-shadow: 0 25px 55px rgba(0, 0, 0, 0.7), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 /* Turntable */
@@ -1202,6 +1228,9 @@ button { font: inherit; }
     0 10px 20px rgba(0,0,0,0.6);
   border: 2px solid #888;
   transition: all 0.3s ease;
+  isolation: isolate;
+  contain: paint;
+  transform: translateZ(0);
 }
 
 .turntable.is-dark {
@@ -2867,12 +2896,13 @@ button { font: inherit; }
 }
 /* Spine Shelf (Page 5) */
 .dj-page-background {
-  position: fixed;
+  position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   z-index: 0;
   pointer-events: none;
+  transform: translateZ(0);
 }
 
 .spine-shelf-container {
@@ -2952,9 +2982,11 @@ button { font: inherit; }
 
 .dj-page-container.with-glassy-shelf .spine-shelf-container,
 .dj-page-container.with-glassy-shelf .inline-record-viewer {
-  backdrop-filter: blur(20px) brightness(1.18);
-  -webkit-backdrop-filter: blur(20px) brightness(1.18);
+  backdrop-filter: blur(12px) brightness(1.12);
+  -webkit-backdrop-filter: blur(12px) brightness(1.12);
   background: rgba(255, 255, 255, 0.04);
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .dj-page-container.no-glassy-shelf .spine-shelf-container,
@@ -2990,28 +3022,32 @@ button { font: inherit; }
 /* Shelf Bar Themes matching DJ Setup */
 .spine-shelf-bar.dj-theme-glass-clear {
   background: rgba(255, 255, 255, 0.22);
-  backdrop-filter: blur(28px) saturate(1.4);
-  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.3);
+  -webkit-backdrop-filter: blur(12px) saturate(1.3);
   border: 1.5px solid rgba(255, 255, 255, 0.55);
   box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25), inset 0 2px 6px rgba(255, 255, 255, 0.9);
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .spine-shelf-bar.dj-theme-glass-clear::before {
   background: rgba(255, 255, 255, 0.2);
-  filter: blur(10px);
+  filter: blur(6px);
 }
 
 .spine-shelf-bar.dj-theme-glass-smoked {
   background: rgba(18, 20, 26, 0.68);
-  backdrop-filter: blur(28px) saturate(1.2);
-  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   border: 1.5px solid rgba(255, 255, 255, 0.18);
   box-shadow: 0 35px 75px rgba(0, 0, 0, 0.75), inset 0 1px 2px rgba(255, 255, 255, 0.22);
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 .spine-shelf-bar.dj-theme-glass-smoked::before {
   background: rgba(0, 0, 0, 0.65);
-  filter: blur(12px);
+  filter: blur(6px);
 }
 
 .spine-shelf-bar.dj-theme-light {

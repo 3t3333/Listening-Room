@@ -1,5 +1,15 @@
 import { useEffect, useState } from "react";
 import { openDatabase, BACKGROUNDS_STORE } from "../lib/mp3Storage";
+import {
+  isVideoMedia,
+  registerMediaBlob,
+  revokeMediaBlob,
+  validateVideoDuration,
+  scanVideoPalette,
+  type LiveWallpaperColorScanMode,
+  type AmbientColorScheduleEntry,
+} from "../lib/liveWallpaper";
+import type { ArtworkPalette } from "./useArtworkColor";
 
 const settingsKey = "listening-room-background-settings";
 const storeName = BACKGROUNDS_STORE;
@@ -12,13 +22,17 @@ interface StoredBackground {
 
 export type BackgroundFitMode = "cover" | "contain";
 
-interface BackgroundSettings {
+export interface BackgroundSettings {
   opacity: number;
   adaptColors: boolean;
   positionX?: number; // 0 to 100, default 50
   positionY?: number; // 0 to 100, default 50
   fit?: BackgroundFitMode; // default "cover"
   zoom?: number; // 100 to 200, default 100
+  pauseVideoOnMusicPause?: boolean; // toggle
+  colorScanMode?: LiveWallpaperColorScanMode;
+  palette?: ArtworkPalette;
+  schedule?: AmbientColorScheduleEntry[];
 }
 
 export interface CustomBackgroundState extends BackgroundSettings {
@@ -29,11 +43,17 @@ export interface CustomBackgroundState extends BackgroundSettings {
   positionY: number;
   fit: BackgroundFitMode;
   zoom: number;
-  setImage: (file: File) => Promise<void>;
+  pauseVideoOnMusicPause: boolean;
+  colorScanMode: LiveWallpaperColorScanMode;
+  palette?: ArtworkPalette;
+  schedule?: AmbientColorScheduleEntry[];
+  setImage: (file: File, scanMode?: LiveWallpaperColorScanMode, onProgress?: (pct: number) => void) => Promise<void>;
   removeImage: () => Promise<void>;
   setOpacity: (opacity: number) => void;
   setAdaptColors: (adaptColors: boolean) => void;
   setPositionY: (y: number) => void;
+  setPauseVideoOnMusicPause: (pause: boolean) => void;
+  setColorScanMode: (mode: LiveWallpaperColorScanMode) => void;
   setFraming: (framing: { positionX?: number; positionY?: number; fit?: BackgroundFitMode; zoom?: number }) => void;
 }
 
@@ -44,6 +64,8 @@ const defaultSettings: BackgroundSettings = {
   positionY: 50,
   fit: "cover",
   zoom: 100,
+  pauseVideoOnMusicPause: false,
+  colorScanMode: "si5",
 };
 
 export function useCustomBackground(): CustomBackgroundState {
@@ -73,20 +95,58 @@ export function useCustomBackground(): CustomBackgroundState {
       return;
     }
     const next = URL.createObjectURL(image.blob);
+    registerMediaBlob(next, image.blob.type);
     setImageUrl(next);
-    return () => URL.revokeObjectURL(next);
+    return () => {
+      revokeMediaBlob(next);
+    };
   }, [image]);
 
-  async function setImage(file: File) {
-    if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+  async function setImage(
+    file: File,
+    scanMode: LiveWallpaperColorScanMode = settings.colorScanMode || "si5",
+    onProgress?: (pct: number) => void
+  ) {
+    const isVideo = isVideoMedia(file.name, file.type);
+    const isImage = file.type.startsWith("image/") || file.name.toLowerCase().endsWith(".gif");
+
+    if (!isVideo && !isImage) {
+      throw new Error("Choose a supported image or video file (.png, .jpg, .webp, .gif, .mp4, .webm, .mov).");
+    }
+
+    let scannedPalette: ArtworkPalette | undefined = undefined;
+    let scannedSchedule: AmbientColorScheduleEntry[] | undefined = undefined;
+
+    if (isVideo) {
+      // 1. Enforce 60-second duration limit
+      await validateVideoDuration(file, 60);
+
+      // 2. Perform color scanning
+      const scanResult = await scanVideoPalette(file, scanMode, onProgress);
+      scannedPalette = scanResult.palette;
+      scannedSchedule = scanResult.schedule;
+    }
+
     const next = { blob: file, name: file.name };
     await writeBackground(next);
     setImageState(next);
+
+    updateSettings({
+      ...settings,
+      colorScanMode: scanMode,
+      palette: scannedPalette,
+      schedule: scannedSchedule,
+    });
   }
 
   async function removeImage() {
     await deleteBackground();
     setImageState(null);
+    updateSettings({
+      ...settings,
+      palette: undefined,
+      schedule: undefined,
+    });
   }
 
   function updateSettings(next: BackgroundSettings) {
@@ -98,6 +158,8 @@ export function useCustomBackground(): CustomBackgroundState {
   const positionY = settings.positionY ?? defaultSettings.positionY!;
   const fit = settings.fit ?? defaultSettings.fit!;
   const zoom = settings.zoom ?? defaultSettings.zoom!;
+  const pauseVideoOnMusicPause = settings.pauseVideoOnMusicPause ?? defaultSettings.pauseVideoOnMusicPause!;
+  const colorScanMode = settings.colorScanMode ?? defaultSettings.colorScanMode!;
 
   return {
     ...settings,
@@ -105,6 +167,10 @@ export function useCustomBackground(): CustomBackgroundState {
     positionY,
     fit,
     zoom,
+    pauseVideoOnMusicPause,
+    colorScanMode,
+    palette: settings.palette,
+    schedule: settings.schedule,
     imageUrl,
     fileName: image?.name ?? null,
     loading,
@@ -113,6 +179,8 @@ export function useCustomBackground(): CustomBackgroundState {
     setOpacity: (opacity) => updateSettings({ ...settings, opacity: Math.max(0, Math.min(1, opacity)) }),
     setAdaptColors: (adaptColors) => updateSettings({ ...settings, adaptColors }),
     setPositionY: (y) => updateSettings({ ...settings, positionY: Math.max(0, Math.min(100, y)) }),
+    setPauseVideoOnMusicPause: (pause) => updateSettings({ ...settings, pauseVideoOnMusicPause: pause }),
+    setColorScanMode: (mode) => updateSettings({ ...settings, colorScanMode: mode }),
     setFraming: (framing) => updateSettings({
       ...settings,
       positionX: framing.positionX !== undefined ? Math.max(0, Math.min(100, framing.positionX)) : positionX,
@@ -133,6 +201,10 @@ function readSettings(): BackgroundSettings {
       positionY: typeof stored?.positionY === "number" ? Math.max(0, Math.min(100, stored.positionY)) : defaultSettings.positionY,
       fit: stored?.fit === "contain" ? "contain" : "cover",
       zoom: typeof stored?.zoom === "number" ? Math.max(100, Math.min(200, stored.zoom)) : defaultSettings.zoom,
+      pauseVideoOnMusicPause: typeof stored?.pauseVideoOnMusicPause === "boolean" ? stored.pauseVideoOnMusicPause : defaultSettings.pauseVideoOnMusicPause,
+      colorScanMode: stored?.colorScanMode === "dynamic" || stored?.colorScanMode === "first-frame" ? stored.colorScanMode : "si5",
+      palette: stored?.palette,
+      schedule: stored?.schedule,
     };
   } catch {
     return defaultSettings;

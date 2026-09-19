@@ -10,6 +10,9 @@ export interface BackgroundPresentation {
   positionY?: number;
   fit?: "cover" | "contain";
   zoom?: number;
+  pauseVideoOnMusicPause?: boolean;
+  schedule?: import("../lib/liveWallpaper").AmbientColorScheduleEntry[] | null;
+  customVisualizerRgb?: string | null;
 }
 
 export interface ThemeProps {
@@ -22,4 +25,6 @@ export interface ThemeProps {
   onPlayTrack?: (track: any, tracks: any[]) => void;
   onQueueTrack?: (track: any) => Promise<void>;
   onQueueAlbum?: (tracks: any[]) => void;
+  customVisualizerRgb?: string | null;
+  vinylColor?: string | null;
 }

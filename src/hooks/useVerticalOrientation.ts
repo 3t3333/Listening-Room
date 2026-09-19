@@ -15,14 +15,27 @@ export function useVerticalOrientation(settings: DjSettings): VerticalOrientatio
 
   useEffect(() => {
     function update() {
-      setState(computeOrientation(settings));
+      setState((prev) => {
+        const next = computeOrientation(settings);
+        if (
+          prev.isVertical === next.isVertical &&
+          prev.direction === next.direction &&
+          prev.jacketPlacement === next.jacketPlacement &&
+          prev.snapSide === next.snapSide &&
+          prev.windowWidth === next.windowWidth &&
+          prev.windowHeight === next.windowHeight
+        ) {
+          return prev;
+        }
+        return next;
+      });
     }
 
     window.addEventListener("resize", update);
     window.addEventListener("focus", update);
 
     // Periodically check screen position for window dragging / snapping
-    const interval = window.setInterval(update, 600);
+    const interval = window.setInterval(update, 1200);
 
     return () => {
       window.removeEventListener("resize", update);

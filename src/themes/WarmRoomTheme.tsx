@@ -26,6 +26,9 @@ export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNe
         positionY={background.positionY} 
         fit={background.fit} 
         zoom={background.zoom} 
+        isPlaying={playback.isPlaying}
+        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
+        schedule={background.schedule}
       />
       <div className="warm-title">
         <h1>{track?.name ?? "The room is quiet"}</h1>

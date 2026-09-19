@@ -83,92 +83,72 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
     const currentTrack = playback.current;
     const nextTrack = playback.next;
 
+    const queuedAlbumTrack = (albumQueue && albumQueue.length > 0 && albumQueue[0]?.[0]) 
+      ? albumQueue[0][0] 
+      : nextUniqueTrack;
+
     setDeckTracks((prev) => {
       const isAlbumContinuation = isSameAlbum(currentTrack, nextTrack) || isSameAlbum(prev.left, currentTrack) || isSameAlbum(prev.right, currentTrack);
       
-      let newLeft = prev.left;
-      let newRight = prev.right;
       let newActiveSide = activeSide;
 
       if (!prev.left && !prev.right) {
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-      }
-      else if (activeSide === "left" && isSameTrack(prev.left, currentTrack)) {
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-      }
-      else if (activeSide === "right" && isSameTrack(prev.right, currentTrack)) {
-        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-        newRight = currentTrack;
-      }
-      else if (activeSide === "left" && isSameTrack(prev.right, currentTrack)) {
-        newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-        newRight = currentTrack;
-      }
-      else if (activeSide === "right" && isSameTrack(prev.left, currentTrack)) {
         newActiveSide = "left";
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-      }
-      else if (activeSide === "left" && isSameAlbum(prev.left, currentTrack)) {
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-      }
-      else if (activeSide === "right" && isSameAlbum(prev.right, currentTrack)) {
-        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-        newRight = currentTrack;
-      }
-      else if (activeSide === "left" && isSameAlbum(prev.right, currentTrack)) {
+      } else if (activeSide === "left" && isSameTrack(prev.right, currentTrack)) {
         newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-        newRight = currentTrack;
-      }
-      else if (activeSide === "right" && isSameAlbum(prev.left, currentTrack)) {
+      } else if (activeSide === "right" && isSameTrack(prev.left, currentTrack)) {
         newActiveSide = "left";
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-      }
-      else if (activeSide === "left") {
+      } else if (activeSide === "left" && isSameAlbum(prev.right, currentTrack) && !isSameAlbum(prev.left, currentTrack)) {
         newActiveSide = "right";
-        newLeft = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
-        newRight = currentTrack;
+      } else if (activeSide === "right" && isSameAlbum(prev.left, currentTrack) && !isSameAlbum(prev.right, currentTrack)) {
+        newActiveSide = "left";
+      }
+
+      let newLeft: Track | null = prev.left;
+      let newRight: Track | null = prev.right;
+
+      if (newActiveSide === "left") {
+        newLeft = currentTrack;
+        if (queuedAlbumTrack && !isSameAlbum(queuedAlbumTrack, currentTrack)) {
+          newRight = queuedAlbumTrack;
+        } else if (prev.right && !isSameAlbum(prev.right, currentTrack)) {
+          newRight = prev.right;
+        } else if (settings.optimizeSingleAlbum && isAlbumContinuation) {
+          newRight = null;
+        } else {
+          newRight = nextTrack;
+        }
       } else {
-        newActiveSide = "left";
-        newLeft = currentTrack;
-        newRight = settings.optimizeSingleAlbum && isAlbumContinuation ? null : nextTrack;
+        newRight = currentTrack;
+        if (queuedAlbumTrack && !isSameAlbum(queuedAlbumTrack, currentTrack)) {
+          newLeft = queuedAlbumTrack;
+        } else if (prev.left && !isSameAlbum(prev.left, currentTrack)) {
+          newLeft = prev.left;
+        } else if (settings.optimizeSingleAlbum && isAlbumContinuation) {
+          newLeft = null;
+        } else {
+          newLeft = nextTrack;
+        }
       }
 
       if (newActiveSide !== activeSide) setActiveSide(newActiveSide);
 
-      // Override the empty deck with nextUniqueTrack if optimizeSingleAlbum is trying to hide it, 
-      // but there is actually a different album queued!
-      if (settings.optimizeSingleAlbum && nextUniqueTrack) {
-         if (newActiveSide === "left" && !newRight) newRight = nextUniqueTrack;
-         if (newActiveSide === "right" && !newLeft) newLeft = nextUniqueTrack;
-      }
-
       return { left: newLeft, right: newRight };
     });
 
-    if (currentTrack?.imageUrl) {
+    if (albumQueue && albumQueue.length > 0) {
+      const uniqueFromAlbum = albumQueue.find(album => album.length > 0 && !isSameAlbum(album[0], currentTrack));
+      setNextUniqueTrack(uniqueFromAlbum ? uniqueFromAlbum[0] : (albumQueue[0]?.[0] || null));
+    } else if (currentTrack) {
       let mounted = true;
       player.queue().then((tracks) => {
         if (!mounted) return;
-        // Check albumQueue first!
-        if (albumQueue && albumQueue.length > 0) {
-          const uniqueFromAlbum = albumQueue.find(album => album.length > 0 && album[0].imageUrl !== currentTrack.imageUrl);
-          if (uniqueFromAlbum) {
-            setNextUniqueTrack(uniqueFromAlbum[0]);
-            return;
-          }
-        }
-        // Fallback to backend queue
-        const unique = tracks.find(t => t.imageUrl && t.imageUrl !== currentTrack.imageUrl);
+        const unique = tracks.find(t => !isSameAlbum(t, currentTrack));
         setNextUniqueTrack(unique ?? null);
       }).catch(console.error);
       return () => { mounted = false; };
+    } else {
+      setNextUniqueTrack(null);
     }
   }, [
     playback.current?.uri,
@@ -183,8 +163,13 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
     albumQueue,
   ]);
 
-  const customization = useActiveCustomization(playback.current, background);
-  const artworkPalette = useArtworkPalette(playback.current?.imageUrl);
+  const [inspectingCollection, setInspectingCollection] = useState<{ collection: import("../lib/collections").Collection, rect: DOMRect } | null>(null);
+  const [flyingRecord, setFlyingRecord] = useState<{ record: import("../lib/collections").Collection, track: any, sourceRect: DOMRect, targetRect: DOMRect } | null>(null);
+  const pageContainerRef = useRef<HTMLDivElement>(null);
+
+  const targetTrack = inspectingCollection?.collection.tracks?.[0] ?? playback.current;
+  const customization = useActiveCustomization(targetTrack, background);
+  const artworkPalette = useArtworkPalette(targetTrack?.imageUrl);
   const palette = background.adaptColors && (customization.effectiveImageUrl || background.imageUrl) ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
   const visualizerRgb = customization.customVisualizerRgb || `${accentRed}, ${accentGreen}, ${accentBlue}`;
@@ -218,12 +203,11 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
   const isVerticalVisualizer = activeLayoutClass !== "layout-single-bottom" && activeLayoutClass !== "layout-single-top";
   const hideVisualizer = activeLayoutClass === "layout-single-only";
 
-  const [inspectingCollection, setInspectingCollection] = useState<{ collection: import("../lib/collections").Collection, rect: DOMRect } | null>(null);
-  const [flyingRecord, setFlyingRecord] = useState<{ record: import("../lib/collections").Collection, track: any, sourceRect: DOMRect, targetRect: DOMRect } | null>(null);
-  const pageContainerRef = useRef<HTMLDivElement>(null);
-
   function flyRecordToTurntable(track: any, record: import("../lib/collections").Collection, isPlay: boolean) {
-    const targetSide = (!deckTracks.left || (!deckTracks.left && !deckTracks.right && activeSide === "left")) ? 'left' : 'right';
+    const inactiveSide = activeSide === "left" ? "right" : "left";
+    const targetSide = isPlay 
+      ? (!deckTracks.left ? "left" : !deckTracks.right ? "right" : inactiveSide)
+      : inactiveSide;
     const targetEl = document.getElementById(`turntable-platter-${targetSide}`);
     const sourceEl = document.querySelector('.inline-vinyl .record-vinyl-disc');
     
@@ -251,6 +235,11 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
           }
           if (onPlayTrack) onPlayTrack(track, record.tracks || []);
         } else {
+          if (animatedSide === targetSide) {
+            setAnimatedTrack(null);
+            setAnimatedSide(null);
+            setAnimatedRecord(null);
+          }
           setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
           if (onQueueAlbum) onQueueAlbum(record.tracks || []);
         }
@@ -267,6 +256,11 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         }
         if (onPlayTrack) onPlayTrack(track, record.tracks || []);
       } else {
+        if (animatedSide === targetSide) {
+          setAnimatedTrack(null);
+          setAnimatedSide(null);
+          setAnimatedRecord(null);
+        }
         setDeckTracks((prev) => ({ ...prev, [targetSide]: track }));
         if (onQueueAlbum) onQueueAlbum(record.tracks || []);
       }
@@ -405,8 +399,11 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
     isRightTrackActive || (activeSide === "right" && !isLeftTrackActive)
   )) || (animatedSide === "right" && !!animatedTrack);
 
-  const isLeftAppPlaying = isLeftActive || (playback.isPlaying && isLeftTrackActive);
-  const isRightAppPlaying = isRightActive || (playback.isPlaying && isRightTrackActive);
+  const hasLeftRecord = Boolean(deckTracks.left || (animatedSide === "left" && animatedTrack));
+  const hasRightRecord = Boolean(deckTracks.right || (animatedSide === "right" && animatedTrack));
+
+  const isLeftAppPlaying = (playback.isPlaying && hasLeftRecord) || (animatedSide === "left" && !!animatedTrack);
+  const isRightAppPlaying = (playback.isPlaying && hasRightRecord) || (animatedSide === "right" && !!animatedTrack);
 
   const leftTurntableBattle = (
     <div className="turntable-battle-wrapper is-battle">
@@ -453,11 +450,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
   );
 
   return (
-    <div 
-      ref={pageContainerRef} 
-      className={`dj-page-container ${settings.enableGlassyShelf !== false ? "with-glassy-shelf" : "no-glassy-shelf"} ${isVerticalRig ? "is-vertical-rig" : "is-horizontal-rig"}`} 
-      style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative' }}
-    >
+    <div className="dj-theme-root" style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
       <CustomBackground 
         imageUrl={customization.effectiveImageUrl} 
         opacity={customization.effectiveOpacity} 
@@ -465,8 +458,16 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         positionY={customization.effectivePositionY}
         fit={customization.effectiveFit}
         zoom={customization.effectiveZoom}
+        isPlaying={playback.isPlaying}
+        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
+        schedule={customization.effectiveSchedule || background.schedule}
         className="dj-page-background"
       />
+      <div 
+        ref={pageContainerRef} 
+        className={`dj-page-container ${settings.enableGlassyShelf !== false ? "with-glassy-shelf" : "no-glassy-shelf"} ${isVerticalRig ? "is-vertical-rig" : "is-horizontal-rig"}`} 
+        style={{ width: '100%', height: '100%', overflowY: 'auto', position: 'relative', zIndex: 1 }}
+      >
       <div className={`dj-setup-container dj-theme-${currentTurntableTheme} ${isVerticalRig ? "is-vertical" : ""}`} style={style}>
         {themeToast && (
           <div className="dj-theme-toast">
@@ -611,6 +612,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         </div>,
         pageContainerRef.current!
       )}
+      </div>
     </div>
   );
 }

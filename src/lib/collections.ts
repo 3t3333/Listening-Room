@@ -9,6 +9,10 @@ export interface CollectionCustomization {
   backgroundPositionY?: number;           // 0 to 100, default 50
   backgroundFit?: "cover" | "contain";    // default "cover"
   backgroundZoom?: number;                // 100 to 200, default 100
+  backgroundMediaType?: "image" | "video";
+  backgroundColorScanMode?: import("./liveWallpaper").LiveWallpaperColorScanMode;
+  backgroundPalette?: { primary: [number, number, number]; accent: [number, number, number] };
+  backgroundSchedule?: import("./liveWallpaper").AmbientColorScheduleEntry[];
   equalizerColorMode?: "adapt" | "custom"; // "adapt" matches background/artwork
   equalizerCustomColor?: string | null;   // hex string e.g. "#00d26a"
   vinylColor?: string | null;             // hex string e.g. "#c01525" or null for default black
@@ -33,6 +37,38 @@ export const defaultCollectionId = "my-collection";
 export const recentCollectionId = "recently-played";
 const recentLimit = 10;
 
+let hasInitializedMp3Artwork = false;
+
+export async function initMp3Artwork(): Promise<void> {
+  if (hasInitializedMp3Artwork) return;
+  hasInitializedMp3Artwork = true;
+
+  const collections = getCollections();
+  const mp3Collections = collections.filter(
+    (c) => c.format === "mp3" || c.id.startsWith("rec-mp3-")
+  );
+
+  if (mp3Collections.length === 0) return;
+
+  let anyChanged = false;
+  for (const col of mp3Collections) {
+    const artUrl = await getArtworkUrl(`art-${col.id}`);
+    if (artUrl) {
+      for (const t of col.tracks) {
+        if (t.imageUrl !== artUrl) {
+          t.imageUrl = artUrl;
+          t.originalImageUrl = artUrl;
+          anyChanged = true;
+        }
+      }
+    }
+  }
+
+  if (anyChanged) {
+    saveCollections(collections);
+  }
+}
+
 export function getCollections(): Collection[] {
   let collections: Collection[] = [];
   try {
@@ -53,37 +89,10 @@ export function getCollections(): Collection[] {
     tracks: [],
     updatedAt: now,
   };
-  const result = [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)].map(c => ({
+  return [mine, recent, ...collections.filter((item) => item.id !== defaultCollectionId && item.id !== recentCollectionId)].map(c => ({
     ...c,
     tracks: c.tracks.map(t => mapTrackArtwork(t) as Track)
   }));
-
-  // Self-heal stale blob: artwork URLs for MP3 albums by resolving from IndexedDB
-  const mp3WithStaleBlobs = result.filter(
-    (c) => (c.format === "mp3" || c.id.startsWith("rec-mp3-")) && c.tracks.some((t) => t.imageUrl?.startsWith("blob:"))
-  );
-  if (mp3WithStaleBlobs.length > 0) {
-    setTimeout(async () => {
-      let changed = false;
-      for (const col of mp3WithStaleBlobs) {
-        const artUrl = await getArtworkUrl(`art-${col.id}`);
-        if (artUrl) {
-          for (const t of col.tracks) {
-            if (t.imageUrl?.startsWith("blob:")) {
-              t.imageUrl = artUrl;
-              t.originalImageUrl = artUrl;
-              changed = true;
-            }
-          }
-        }
-      }
-      if (changed) {
-        saveCollections(result);
-      }
-    }, 100);
-  }
-
-  return result;
 }
 
 export function addTrackToCollection(track: Track, collectionId = defaultCollectionId) {

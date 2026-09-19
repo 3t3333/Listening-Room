@@ -221,9 +221,7 @@ export async function getArtworkUrl(id: string): Promise<string | null> {
           let url: string;
           if (result instanceof Blob) {
             url = URL.createObjectURL(result);
-          } else if (typeof result === "string" && result.startsWith("data:")) {
-            url = result;
-          } else if (typeof result === "string") {
+          } else if (typeof result === "string" && (result.startsWith("data:") || result.length > 0)) {
             url = URL.createObjectURL(base64ToBlob(result));
           } else {
             url = URL.createObjectURL(new Blob([result as any], { type: "image/jpeg" }));
@@ -407,7 +405,18 @@ export async function importMp3Assets(assets: { audio?: Record<string, string>; 
   }
 }
 
+const albumBgUrlCache = new Map<string, string>();
+
 export async function saveAlbumBackground(albumId: string, blob: Blob): Promise<void> {
+  const existing = albumBgUrlCache.get(albumId);
+  if (existing) {
+    try {
+      import("./liveWallpaper").then((m) => m.revokeMediaBlob(existing));
+    } catch {
+      URL.revokeObjectURL(existing);
+    }
+    albumBgUrlCache.delete(albumId);
+  }
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ALBUM_BG_STORE, "readwrite");
@@ -420,6 +429,11 @@ export async function saveAlbumBackground(albumId: string, blob: Blob): Promise<
 }
 
 export async function getAlbumBackgroundUrl(albumId: string): Promise<string | null> {
+  if (!albumId) return null;
+  if (albumBgUrlCache.has(albumId)) {
+    return albumBgUrlCache.get(albumId)!;
+  }
+
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ALBUM_BG_STORE, "readonly");
@@ -427,7 +441,19 @@ export async function getAlbumBackgroundUrl(albumId: string): Promise<string | n
     const req = store.get(`album-bg-${albumId}`);
     req.onsuccess = () => {
       const blob = req.result as Blob | undefined;
-      resolve(blob ? URL.createObjectURL(blob) : null);
+      if (blob) {
+        const url = URL.createObjectURL(blob);
+        try {
+          // Register mime in blob registry
+          import("./liveWallpaper").then((m) => m.registerMediaBlob(url, blob.type));
+        } catch {
+          // ignore
+        }
+        albumBgUrlCache.set(albumId, url);
+        resolve(url);
+      } else {
+        resolve(null);
+      }
     };
     req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
@@ -435,6 +461,15 @@ export async function getAlbumBackgroundUrl(albumId: string): Promise<string | n
 }
 
 export async function deleteAlbumBackground(albumId: string): Promise<void> {
+  const existing = albumBgUrlCache.get(albumId);
+  if (existing) {
+    try {
+      import("./liveWallpaper").then((m) => m.revokeMediaBlob(existing));
+    } catch {
+      URL.revokeObjectURL(existing);
+    }
+    albumBgUrlCache.delete(albumId);
+  }
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(ALBUM_BG_STORE, "readwrite");
@@ -487,19 +522,64 @@ export async function importAlbumBackgrounds(backgrounds: Record<string, string>
   const entries = Object.entries(backgrounds).filter(([_, b64]) => typeof b64 === "string" && b64.length > 0);
   if (entries.length === 0) return;
 
-  await new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(ALBUM_BG_STORE, "readwrite");
-    const store = tx.objectStore(ALBUM_BG_STORE);
-    for (const [id, base64] of entries) {
-      try {
-        const blob = base64ToBlob(base64);
-        store.put(blob, id);
-      } catch (err) {
-        console.warn(`Failed to decode and store album background ${id}:`, err);
+  const BATCH_SIZE = 2;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(ALBUM_BG_STORE, "readwrite");
+      const store = tx.objectStore(ALBUM_BG_STORE);
+      for (const [id, base64] of batch) {
+        try {
+          const blob = base64ToBlob(base64);
+          store.put(blob, id);
+        } catch (err) {
+          console.warn(`Failed to decode and store album background ${id}:`, err);
+        }
       }
-    }
-    tx.oncomplete = () => resolve();
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(new Error(`Transaction aborted during album background import batch at ${i}`));
+    });
+  }
+}
+
+export async function exportGlobalBackground(): Promise<{ name: string; data: string } | null> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BACKGROUNDS_STORE, "readonly");
+    const store = tx.objectStore(BACKGROUNDS_STORE);
+    const req = store.get("custom-background");
+    req.onsuccess = async () => {
+      const result = req.result as { blob: Blob; name: string } | undefined;
+      if (!result || !(result.blob instanceof Blob)) {
+        resolve(null);
+        return;
+      }
+      try {
+        const data = await blobToBase64(result.blob);
+        resolve({ name: result.name || "custom-background", data });
+      } catch (err) {
+        console.warn("Failed to export global background:", err);
+        resolve(null);
+      }
+    };
+    req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
   });
 }
+
+export async function importGlobalBackground(item: { name: string; data: string }): Promise<void> {
+  if (!item || !item.data) return;
+  const db = await openDatabase();
+  const blob = base64ToBlob(item.data);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BACKGROUNDS_STORE, "readwrite");
+    const store = tx.objectStore(BACKGROUNDS_STORE);
+    const req = store.put({ blob, name: item.name }, "custom-background");
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 

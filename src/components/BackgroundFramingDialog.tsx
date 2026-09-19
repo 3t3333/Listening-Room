@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Crop, Move, ZoomIn, RotateCcw, Check, ArrowUp, ArrowDown, AlignCenter, Maximize2, Sparkles } from "lucide-react";
+import { isVideoMedia } from "../lib/liveWallpaper";
 
 export interface BackgroundFramingDialogProps {
   open: boolean;
@@ -53,20 +54,33 @@ export function BackgroundFramingDialog({
     }
   }, [open, initialPositionX, initialPositionY, initialFit, initialZoom]);
 
-  // Detect image aspect ratio when image loads
+  // Detect media aspect ratio when loaded
   useEffect(() => {
     if (!imageUrl) {
       setImageRatio(null);
       return;
     }
-    const img = new Image();
-    img.src = imageUrl;
-    img.onload = () => {
-      const ratio = img.naturalWidth / img.naturalHeight;
-      if (ratio < 0.85) setImageRatio("portrait");
-      else if (ratio > 1.15) setImageRatio("landscape");
-      else setImageRatio("square");
-    };
+    const isVideo = isVideoMedia(imageUrl);
+    if (isVideo) {
+      const v = document.createElement("video");
+      v.preload = "metadata";
+      v.onloadedmetadata = () => {
+        const ratio = (v.videoWidth || 16) / (v.videoHeight || 9);
+        if (ratio < 0.85) setImageRatio("portrait");
+        else if (ratio > 1.15) setImageRatio("landscape");
+        else setImageRatio("square");
+      };
+      v.src = imageUrl;
+    } else {
+      const img = new Image();
+      img.src = imageUrl;
+      img.onload = () => {
+        const ratio = img.naturalWidth / img.naturalHeight;
+        if (ratio < 0.85) setImageRatio("portrait");
+        else if (ratio > 1.15) setImageRatio("landscape");
+        else setImageRatio("square");
+      };
+    }
   }, [imageUrl]);
 
   // Drag-to-pan handlers
@@ -161,41 +175,97 @@ export function BackgroundFramingDialog({
             >
               {/* Blurred backdrop for contain mode */}
               {fit === "contain" && imageUrl && (
-                <img
-                  src={imageUrl}
-                  alt=""
-                  className="framing-viewport-ambient"
-                  style={{
-                    position: "absolute",
-                    inset: "-15%",
-                    width: "130%",
-                    height: "130%",
-                    objectFit: "cover",
-                    objectPosition: `${posX}% ${posY}%`,
-                    filter: "blur(32px) brightness(0.65) saturate(1.2)",
-                    pointerEvents: "none",
-                  }}
-                />
+                isVideoMedia(imageUrl) ? (
+                  <video
+                    src={imageUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    disablePictureInPicture
+                    disableRemotePlayback
+                    onTimeUpdate={(e) => {
+                      if (e.currentTarget.currentTime >= 60) {
+                        e.currentTarget.currentTime = 0;
+                      }
+                    }}
+                    className="framing-viewport-ambient"
+                    style={{
+                      position: "absolute",
+                      inset: "-15%",
+                      width: "130%",
+                      height: "130%",
+                      objectFit: "cover",
+                      objectPosition: `${posX}% ${posY}%`,
+                      filter: "blur(32px) brightness(0.65) saturate(1.2)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={imageUrl}
+                    alt=""
+                    className="framing-viewport-ambient"
+                    style={{
+                      position: "absolute",
+                      inset: "-15%",
+                      width: "130%",
+                      height: "130%",
+                      objectFit: "cover",
+                      objectPosition: `${posX}% ${posY}%`,
+                      filter: "blur(32px) brightness(0.65) saturate(1.2)",
+                      pointerEvents: "none",
+                    }}
+                  />
+                )
               )}
 
-              {/* Main Photo */}
+              {/* Main Photo or Video */}
               {imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt="Framing preview"
-                  className="framing-viewport-img"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: fit,
-                    objectPosition: `${posX}% ${posY}%`,
-                    transform: zoom > 100 ? `scale(${zoom / 100})` : undefined,
-                    transformOrigin: `${posX}% ${posY}%`,
-                    userSelect: "none",
-                    pointerEvents: "none",
-                  }}
-                  draggable={false}
-                />
+                isVideoMedia(imageUrl) ? (
+                  <video
+                    src={imageUrl}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    disablePictureInPicture
+                    disableRemotePlayback
+                    onTimeUpdate={(e) => {
+                      if (e.currentTarget.currentTime >= 60) {
+                        e.currentTarget.currentTime = 0;
+                      }
+                    }}
+                    className="framing-viewport-img"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: fit,
+                      objectPosition: `${posX}% ${posY}%`,
+                      transform: zoom > 100 ? `scale(${zoom / 100})` : undefined,
+                      transformOrigin: `${posX}% ${posY}%`,
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                  />
+                ) : (
+                  <img
+                    src={imageUrl}
+                    alt="Framing preview"
+                    className="framing-viewport-img"
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: fit,
+                      objectPosition: `${posX}% ${posY}%`,
+                      transform: zoom > 100 ? `scale(${zoom / 100})` : undefined,
+                      transformOrigin: `${posX}% ${posY}%`,
+                      userSelect: "none",
+                      pointerEvents: "none",
+                    }}
+                    draggable={false}
+                  />
+                )
               ) : (
                 <div className="framing-empty-state">No image selected</div>
               )}

@@ -7,32 +7,34 @@ import { ScrollingTitle } from "../components/ScrollingTitle";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
 import { VinylRecord } from "../components/VinylRecord";
 import { useArtworkPalette } from "../hooks/useArtworkColor";
-import { findMatchingCollection } from "../hooks/useActiveCustomization";
-import { getCollections } from "../lib/collections";
+import { useActiveCustomization } from "../hooks/useActiveCustomization";
 import type { ThemeProps } from "./types";
 
-export function MidnightMixTheme({ playback, background, onToggle, onPrevious, onNext }: ThemeProps) {
+export function MidnightMixTheme({ playback, background, onToggle, onPrevious, onNext, customVisualizerRgb, vinylColor: propVinylColor }: ThemeProps) {
   const track = playback.current;
-  const collections = getCollections();
-  const activeCollection = track ? findMatchingCollection(track, collections) : null;
-  const vinylColor = activeCollection?.customization?.vinylColor;
+  const customization = useActiveCustomization(track, background);
+  const vinylColor = customization.vinylColor ?? propVinylColor ?? null;
   const artworkPalette = useArtworkPalette(track?.imageUrl);
-  const palette = background.adaptColors && background.imageUrl ? background.palette : artworkPalette;
+  const palette = background.adaptColors && (customization.effectiveImageUrl || background.imageUrl) ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
+  const visualizerRgb = customization.customVisualizerRgb || customVisualizerRgb || background.customVisualizerRgb || `${accentRed}, ${accentGreen}, ${accentBlue}`;
   const style = {
     "--ambient-rgb": `${red}, ${green}, ${blue}`,
-    "--visualizer-rgb": `${accentRed}, ${accentGreen}, ${accentBlue}`,
+    "--visualizer-rgb": visualizerRgb,
   } as CSSProperties;
 
   return (
     <section className="theme-scene midnight-theme" style={style}>
       <CustomBackground 
-        imageUrl={background.imageUrl} 
-        opacity={background.opacity} 
-        positionX={background.positionX} 
-        positionY={background.positionY} 
-        fit={background.fit} 
-        zoom={background.zoom} 
+        imageUrl={customization.effectiveImageUrl || background.imageUrl} 
+        opacity={customization.effectiveOpacity ?? background.opacity} 
+        positionX={customization.effectivePositionX ?? background.positionX} 
+        positionY={customization.effectivePositionY ?? background.positionY} 
+        fit={customization.effectiveFit ?? background.fit} 
+        zoom={customization.effectiveZoom ?? background.zoom} 
+        isPlaying={playback.isPlaying}
+        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
+        schedule={customization.effectiveSchedule || background.schedule}
       />
       <div className="midnight-ambient" />
       <AudioVisualizer />

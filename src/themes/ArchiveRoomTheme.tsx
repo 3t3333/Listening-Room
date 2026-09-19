@@ -174,6 +174,9 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
         positionY={background.positionY} 
         fit={background.fit} 
         zoom={background.zoom} 
+        isPlaying={playback.isPlaying}
+        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
+        schedule={background.schedule}
       />
       <div className="archive-ambient" />
       <div className="archive-room">

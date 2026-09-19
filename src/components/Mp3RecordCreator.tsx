@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { ArrowLeft, CheckCircle2, ImagePlus, Plus, Trash2, Disc3 } from "lucide-react";
 import { Button } from "./ui/button";
-import { saveAudioTrack, saveArtworkBlob, resizeImageToDataUrl } from "../lib/mp3Storage";
+import { saveAudioTrack, saveArtworkBlob } from "../lib/mp3Storage";
 import { getCollections, type Collection } from "../lib/collections";
 import type { Track } from "../lib/player";
 
@@ -117,8 +117,7 @@ export function Mp3RecordCreator({ onBack, onResolve }: Props) {
 
       if (artworkBlob) {
         const artId = `art-${albumId}`;
-        await saveArtworkBlob(artId, artworkBlob);
-        finalArtworkUrl = await resizeImageToDataUrl(artworkBlob, 600);
+        finalArtworkUrl = await saveArtworkBlob(artId, artworkBlob);
       }
 
       const collectionTracks: Track[] = [];

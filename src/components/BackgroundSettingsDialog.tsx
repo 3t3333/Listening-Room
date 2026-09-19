@@ -1,4 +1,4 @@
-import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop, Loader2 } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
 import { player, type AudioOutputState } from "../lib/player";
@@ -7,8 +7,9 @@ import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { useMp3Settings } from "../hooks/useMp3Settings";
-import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds } from "../lib/mp3Storage";
+import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds, exportGlobalBackground, importGlobalBackground } from "../lib/mp3Storage";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
+import { isVideoMedia } from "../lib/liveWallpaper";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
@@ -17,6 +18,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
   const [tab, setTab] = useState<"background" | "audio" | "playback" | "data">("background");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [scanProgress, setScanProgress] = useState<number | null>(null);
   const [audio, setAudio] = useState<AudioOutputState | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
   const [djSettings, setDjSettings] = useDjSettings();
@@ -33,7 +35,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         "listening-room-artwork-cache",
         "listening-room-theme",
         "dj-settings",
-        "custom-background",
+        "listening-room-background-settings",
         "custom-artwork-mappings",   // album artwork overrides (custom image URLs)
         "mp3-settings"
       ];
@@ -59,6 +61,16 @@ export function BackgroundSettingsDialog({ background, children }: { background:
       } catch (assetErr: any) {
         console.warn("Failed to package MP3 audio assets:", assetErr);
         alert("Warning: Some MP3 audio assets could not be packaged: " + (assetErr?.message || String(assetErr)));
+      }
+
+      // Package global custom background from IndexedDB
+      try {
+        const globalBg = await exportGlobalBackground();
+        if (globalBg) {
+          data["global-background"] = globalBg;
+        }
+      } catch (gBgErr: any) {
+        console.warn("Failed to package global background:", gBgErr);
       }
 
       // Package album custom backgrounds from IndexedDB
@@ -101,29 +113,37 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           await importMp3Assets(data["mp3-assets"]);
         }
 
+        // Restore global background to IndexedDB if present
+        if (data["global-background"]) {
+          await importGlobalBackground(data["global-background"]);
+        } else if (typeof data["custom-background"] === "string" && data["custom-background"].startsWith("data:")) {
+          // Backward compatibility: restore legacy base64 background into IndexedDB
+          await importGlobalBackground({ name: "custom-background", data: data["custom-background"] });
+        }
+
         // Restore custom album backgrounds to IndexedDB if present
         if (data["album-backgrounds"]) {
           await importAlbumBackgrounds(data["album-backgrounds"]);
         }
 
-        // Repair any stale blob: artwork URLs in MP3 collections using imported artwork assets
-        if (data["listening-room-collections"] && data["mp3-assets"]?.artwork) {
+        // Clean up listening-room-collections before writing to localStorage
+        // Avoid storing multi-megabyte base64 strings in localStorage.
+        // If an imported collection contains base64 image strings, convert them to lightweight
+        // placeholder blob strings so collections.ts can self-heal them from IndexedDB on startup.
+        if (data["listening-room-collections"]) {
           let cols = data["listening-room-collections"];
           if (typeof cols === "string") {
             try { cols = JSON.parse(cols); } catch { /* ignore */ }
           }
           if (Array.isArray(cols)) {
-            const artworkMap = data["mp3-assets"].artwork as Record<string, string>;
             for (const col of cols) {
-              if (col.format === "mp3" || col.id?.startsWith("rec-mp3-")) {
-                const artId = `art-${col.id}`;
-                const artData = artworkMap[artId] || artworkMap[col.id] || artworkMap[col.id.replace(/^rec-/, "")];
-                if (artData && Array.isArray(col.tracks)) {
-                  for (const trk of col.tracks) {
-                    if (!trk.imageUrl || trk.imageUrl.startsWith("blob:")) {
-                      trk.imageUrl = artData;
-                      trk.originalImageUrl = artData;
-                    }
+              if (Array.isArray(col.tracks)) {
+                for (const trk of col.tracks) {
+                  if (typeof trk.imageUrl === "string" && trk.imageUrl.startsWith("data:")) {
+                    trk.imageUrl = "blob:stale-artwork";
+                  }
+                  if (typeof trk.originalImageUrl === "string" && trk.originalImageUrl.startsWith("data:")) {
+                    trk.originalImageUrl = "blob:stale-artwork";
                   }
                 }
               }
@@ -132,14 +152,30 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           }
         }
 
+        // Keys that are persisted in IndexedDB and must NEVER be written to localStorage
+        const INDEXED_DB_ASSET_KEYS = new Set([
+          "mp3-assets",
+          "album-backgrounds",
+          "global-background",
+          "custom-background", // global background blob lives in IndexedDB, not localStorage
+        ]);
+
         for (const [key, value] of Object.entries(data)) {
-          if (key === "mp3-assets" || key === "album-backgrounds") continue;
+          if (INDEXED_DB_ASSET_KEYS.has(key)) continue;
           if (value === null) {
             localStorage.removeItem(key);
           } else {
-            localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+            try {
+              localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+            } catch (storageErr) {
+              console.warn(`Failed to restore key "${key}" to localStorage:`, storageErr);
+            }
           }
         }
+
+        // Clean up any legacy custom-background key from localStorage if present
+        localStorage.removeItem("custom-background");
+
         alert("Data imported successfully! The application will now reload to apply the restored settings.");
         window.location.reload();
       } catch (err: any) {
@@ -196,12 +232,17 @@ export function BackgroundSettingsDialog({ background, children }: { background:
     if (!file) return;
     setSaving(true);
     setError(null);
+    setScanProgress(0);
     try {
-      await background.setImage(file);
-    } catch (reason) {
-      setError(String(reason));
+      await background.setImage(file, background.colorScanMode, (pct) => setScanProgress(pct));
+    } catch (reason: any) {
+      if (reason?.message === "Video upload cancelled by user.") {
+        return;
+      }
+      setError(reason?.message || String(reason));
     } finally {
       setSaving(false);
+      setScanProgress(null);
     }
   }
 
@@ -210,8 +251,8 @@ export function BackgroundSettingsDialog({ background, children }: { background:
     setError(null);
     try {
       await background.removeImage();
-    } catch (reason) {
-      setError(String(reason));
+    } catch (reason: any) {
+      setError(reason?.message || String(reason));
     } finally {
       setSaving(false);
     }
@@ -234,27 +275,67 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         
         {tab === "background" && (
           <section className="settings-panel">
-            <header><span>Appearance</span><h2>Custom background</h2><p>Use your own image behind all listening-room themes.</p></header>
+            <header><span>Appearance</span><h2>Custom background</h2><p>Use your own image, GIF, or video (MP4, WebM, MOV) behind all listening-room themes.</p></header>
 
             <div className={`background-preview ${background.imageUrl ? "has-image" : ""}`}>
               {background.imageUrl ? (
-                <img 
-                  src={background.imageUrl} 
-                  alt="Custom background preview" 
-                  style={{
-                    objectFit: background.fit || "cover",
-                    objectPosition: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
-                    transform: (background.zoom ?? 100) > 100 ? `scale(${(background.zoom ?? 100) / 100})` : undefined,
-                    transformOrigin: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
-                  }}
-                />
+                isVideoMedia(background.imageUrl) ? (
+                  <video 
+                    src={background.imageUrl} 
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    disablePictureInPicture
+                    disableRemotePlayback
+                    onTimeUpdate={(e) => {
+                      if (e.currentTarget.currentTime >= 60) {
+                        e.currentTarget.currentTime = 0;
+                      }
+                    }}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: background.fit || "cover",
+                      objectPosition: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                      transform: (background.zoom ?? 100) > 100 ? `scale(${(background.zoom ?? 100) / 100})` : undefined,
+                      transformOrigin: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                    }}
+                  />
+                ) : (
+                  <img 
+                    src={background.imageUrl} 
+                    alt="Custom background preview" 
+                    style={{
+                      objectFit: background.fit || "cover",
+                      objectPosition: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                      transform: (background.zoom ?? 100) > 100 ? `scale(${(background.zoom ?? 100) / 100})` : undefined,
+                      transformOrigin: `${background.positionX ?? 50}% ${background.positionY ?? 50}%`,
+                    }}
+                  />
+                )
               ) : <ImagePlus />}
-              <span>{background.loading ? "Loading background..." : background.fileName ?? "No custom image selected"}</span>
+              <span>
+                {saving && scanProgress !== null 
+                  ? `Scanning ambient lighting colors (${scanProgress}%)...`
+                  : background.loading 
+                  ? "Loading background..." 
+                  : background.fileName ?? "No custom media selected"}
+              </span>
             </div>
 
-            <input ref={input} className="visually-hidden" type="file" accept="image/*" onChange={upload} />
+            <input 
+              ref={input} 
+              className="visually-hidden" 
+              type="file" 
+              accept="image/*,video/mp4,video/webm,video/quicktime,video/x-m4v,.gif,.mp4,.webm,.mov,.m4v" 
+              onChange={upload} 
+            />
             <div className="background-file-actions">
-              <Button onClick={() => input.current?.click()} disabled={saving || background.loading}><ImagePlus size={15} />{background.imageUrl ? "Replace image" : "Choose image"}</Button>
+              <Button onClick={() => input.current?.click()} disabled={saving || background.loading}>
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <ImagePlus size={15} />}
+                {saving ? "Processing media..." : background.imageUrl ? "Replace media" : "Choose media"}
+              </Button>
               {background.imageUrl && (
                 <Button variant="outline" onClick={() => setFramingOpen(true)} disabled={saving || background.loading}>
                   <Crop size={15} style={{ marginRight: '6px' }} />
@@ -297,6 +378,96 @@ export function BackgroundSettingsDialog({ background, children }: { background:
                   </Button>
                 </div>
               </div>
+            )}
+
+            {/* Video Wallpaper Specific Settings */}
+            {isVideoMedia(background.imageUrl) && (
+              <div style={{ marginTop: '14px', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#eee' }}>Ambient Color Scan Mode</span>
+                  <span style={{ fontSize: '11px', color: 'var(--primary, #00d26a)', fontWeight: 600 }}>
+                    {background.colorScanMode === "si5" ? "si5 (5ths Scan)" : background.colorScanMode === "first-frame" ? "First Frame" : "Dynamic Timed"}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => background.setColorScanMode("si5")}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: background.colorScanMode === "si5" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: background.colorScanMode === "si5" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: background.colorScanMode === "si5" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: background.colorScanMode === "si5" ? 600 : 400
+                    }}
+                  >
+                    si5 (Default)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => background.setColorScanMode("first-frame")}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: background.colorScanMode === "first-frame" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: background.colorScanMode === "first-frame" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: background.colorScanMode === "first-frame" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: background.colorScanMode === "first-frame" ? 600 : 400
+                    }}
+                  >
+                    First Frame
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => background.setColorScanMode("dynamic")}
+                    style={{
+                      flex: 1,
+                      padding: '7px 8px',
+                      fontSize: '11px',
+                      borderRadius: '4px',
+                      border: background.colorScanMode === "dynamic" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255,255,255,0.1)',
+                      background: background.colorScanMode === "dynamic" ? 'rgba(0, 210, 106, 0.15)' : 'transparent',
+                      color: background.colorScanMode === "dynamic" ? '#fff' : '#aaa',
+                      cursor: 'pointer',
+                      fontWeight: background.colorScanMode === "dynamic" ? 600 : 400
+                    }}
+                  >
+                    Dynamic Timed
+                  </button>
+                </div>
+                <p style={{ margin: '8px 0 0', fontSize: '11px', color: '#888', lineHeight: 1.4 }}>
+                  {background.colorScanMode === "si5"
+                    ? "si5 analyzes 5 key moments to select the brightest and most saturated ambient lighting color."
+                    : background.colorScanMode === "first-frame"
+                    ? "Fast instant scan of the opening frame."
+                    : "Pre-computes lighting changes every 5 seconds for smooth real-time color transitions as the video plays."}
+                </p>
+              </div>
+            )}
+
+            {isVideoMedia(background.imageUrl) && (
+              <button
+                type="button"
+                className="adaptive-color-setting"
+                role="switch"
+                aria-checked={background.pauseVideoOnMusicPause}
+                onClick={() => background.setPauseVideoOnMusicPause(!background.pauseVideoOnMusicPause)}
+                style={{ marginTop: '12px' }}
+              >
+                <Disc3 size={18} />
+                <span>
+                  <strong>Pause video when music paused</strong>
+                  <small>Automatically pause the live wallpaper when audio is paused, and resume playback when music plays.</small>
+                </span>
+                <i />
+              </button>
             )}
 
             <label className="background-opacity">
