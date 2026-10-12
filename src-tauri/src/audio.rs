@@ -1,3 +1,5 @@
+#![cfg_attr(not(windows), allow(unused_imports, dead_code))]
+
 use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use serde::Serialize;
 #[cfg(windows)]
@@ -137,6 +139,11 @@ pub fn start(app: tauri::AppHandle) {
         .expect("failed to start audio spectrum thread");
 }
 
+#[cfg(not(windows))]
+pub fn start(_app: tauri::AppHandle) {
+    log::info!("Audio loopback capture not implemented on this platform; fallback visualizer active.");
+}
+
 #[cfg(windows)]
 fn capture_loop(
     app: &tauri::AppHandle,
@@ -168,6 +175,8 @@ fn capture_loop(
     let mut bytes = VecDeque::with_capacity(FFT_SIZE * 16);
     let mut analyzer = SpectrumAnalyzer::new();
     let mut last_active = std::time::Instant::now();
+    let mut last_emit = std::time::Instant::now();
+    let mut mono = vec![0.0; FFT_SIZE];
     audio_client.start_stream()?;
 
     loop {
@@ -177,7 +186,6 @@ fn capture_loop(
         }
         capture_client.read_from_device_to_deque(&mut bytes)?;
         while bytes.len() >= FFT_SIZE * 8 {
-            let mut mono = vec![0.0; FFT_SIZE];
             for sample in &mut mono {
                 let left = pop_f32(&mut bytes);
                 let right = pop_f32(&mut bytes);
@@ -187,9 +195,13 @@ fn capture_loop(
             if spectrum.active {
                 last_active = std::time::Instant::now();
             }
-            if tauri::Emitter::emit(app, "audio-spectrum", spectrum).is_err() {
-                audio_client.stop_stream()?;
-                return Ok(());
+            // Throttle IPC emission to max 60 FPS (16ms) to prevent IPC & VDOM flooding
+            if last_emit.elapsed() >= std::time::Duration::from_millis(16) {
+                last_emit = std::time::Instant::now();
+                if tauri::Emitter::emit(app, "audio-spectrum", spectrum).is_err() {
+                    audio_client.stop_stream()?;
+                    return Ok(());
+                }
             }
         }
         if event.wait_for_event(250).is_err()

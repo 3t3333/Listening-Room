@@ -35,10 +35,28 @@ export function CustomBackground({
   const timerRef = useRef<number | null>(null);
 
   const currentVideoRef = useRef<HTMLVideoElement>(null);
+  const prevVideoRef = useRef<HTMLVideoElement>(null);
   const lastScheduleIndexRef = useRef<number>(-1);
 
   const isCurrentVideo = isVideoMedia(currentUrl);
   const isPrevVideo = isVideoMedia(prevUrl);
+
+  // Explicit decoder teardown on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+      if (currentVideoRef.current) {
+        currentVideoRef.current.pause();
+        currentVideoRef.current.removeAttribute("src");
+        currentVideoRef.current.load();
+      }
+      if (prevVideoRef.current) {
+        prevVideoRef.current.pause();
+        prevVideoRef.current.removeAttribute("src");
+        prevVideoRef.current.load();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (imageUrl !== currentUrl) {
@@ -52,8 +70,13 @@ export function CustomBackground({
 
       timerRef.current = window.setTimeout(() => {
         setIsCrossFading(false);
+        if (prevVideoRef.current) {
+          prevVideoRef.current.pause();
+          prevVideoRef.current.removeAttribute("src");
+          prevVideoRef.current.load();
+        }
         setPrevUrl(null);
-      }, 650);
+      }, 350);
     }
   }, [imageUrl, currentUrl, opacity, positionX, positionY, fit, zoom]);
 
@@ -114,7 +137,7 @@ export function CustomBackground({
   useEffect(() => {
     const isHidden = document.hidden;
     const shouldPlay = !isHidden && opacity > 0 && (!pauseVideoOnMusicPause || isPlaying);
-    if (!shouldPlay) return;
+    if (!shouldPlay || !isCurrentVideo) return;
 
     const interval = window.setInterval(() => {
       const video = currentVideoRef.current;
@@ -218,12 +241,13 @@ export function CustomBackground({
         isPrevVideo ? (
           <video
             key={`prev-video-${prevUrl}`}
+            ref={prevVideoRef}
             src={prevUrl}
             autoPlay
             loop
             muted
             playsInline
-            preload="auto"
+            preload="metadata"
             disablePictureInPicture
             disableRemotePlayback
             onTimeUpdate={(e) => {
@@ -238,7 +262,7 @@ export function CustomBackground({
               objectPosition: `${prevFraming.positionX}% ${prevFraming.positionY}%`,
               transform: prevTransform || "translate3d(0, 0, 0)",
               transformOrigin: `${prevFraming.positionX}% ${prevFraming.positionY}%`,
-              animation: "custom-bg-fade-out 0.6s ease-in-out forwards",
+              animation: "custom-bg-fade-out 0.35s ease-in-out forwards",
               backfaceVisibility: "hidden",
               pointerEvents: "none",
               userSelect: "none",
@@ -256,7 +280,7 @@ export function CustomBackground({
               objectPosition: `${prevFraming.positionX}% ${prevFraming.positionY}%`,
               transform: prevTransform,
               transformOrigin: `${prevFraming.positionX}% ${prevFraming.positionY}%`,
-              animation: "custom-bg-fade-out 0.6s ease-in-out forwards",
+              animation: "custom-bg-fade-out 0.35s ease-in-out forwards",
             } as CSSProperties}
             decoding="async"
             draggable={false}
@@ -275,7 +299,7 @@ export function CustomBackground({
             loop
             muted
             playsInline
-            preload="auto"
+            preload="metadata"
             disablePictureInPicture
             disableRemotePlayback
             onTimeUpdate={handleTimeUpdate}
@@ -291,7 +315,7 @@ export function CustomBackground({
               objectPosition: `${positionX}% ${positionY}%`,
               transform: currentTransform || "translate3d(0, 0, 0)",
               transformOrigin: `${positionX}% ${positionY}%`,
-              animation: isCrossFading ? "custom-bg-fade-in 0.6s ease-in-out forwards" : undefined,
+              animation: isCrossFading ? "custom-bg-fade-in 0.35s ease-in-out forwards" : undefined,
               backfaceVisibility: "hidden",
               pointerEvents: "none",
               userSelect: "none",

@@ -1,6 +1,5 @@
 import { Library } from "lucide-react";
 import type { CSSProperties } from "react";
-import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
 import { Turntable } from "../components/Turntable";
 import { useArtworkColor } from "../hooks/useArtworkColor";
@@ -19,20 +18,9 @@ export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNe
 
   return (
     <section className="theme-scene warm-room-theme" style={style}>
-      <CustomBackground 
-        imageUrl={background.imageUrl} 
-        opacity={background.opacity} 
-        positionX={background.positionX} 
-        positionY={background.positionY} 
-        fit={background.fit} 
-        zoom={background.zoom} 
-        isPlaying={playback.isPlaying}
-        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
-        schedule={background.schedule}
-      />
       <div className="warm-title">
         <h1>{track?.name ?? "The room is quiet"}</h1>
-        <p>{track?.artist ?? "Connect Spotify and put on a record."}</p>
+        <p>{track?.artist ?? (playback.connected ? "Choose a song in Spotify and cast to Listening Room." : "Connect Spotify and put on a record.")}</p>
       </div>
 
       <Turntable track={track} isPlaying={playback.isPlaying} />
@@ -40,7 +28,7 @@ export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNe
       <aside className="warm-controls-panel">
         <div className="warm-track-copy">
           <strong>{track?.name ?? "Nothing queued"}</strong>
-          <small>{track?.artist ?? "Select something from your shelf"}</small>
+          <small>{track?.artist ?? (playback.connected ? "Ready for music from Spotify" : "Select something from your shelf")}</small>
         </div>
         <PlayerControls playback={playback} onToggle={onToggle} onPrevious={onPrevious} onNext={onNext} />
       </aside>

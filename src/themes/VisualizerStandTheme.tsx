@@ -1,6 +1,5 @@
 import type { CSSProperties } from "react";
 import { Disc3 } from "lucide-react";
-import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
 import { ScrollingTitle } from "../components/ScrollingTitle";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
@@ -23,17 +22,6 @@ export function VisualizerStandTheme({ playback, background, onToggle, onPreviou
 
   return (
     <section className="theme-scene visualizer-stand-theme" style={style}>
-      <CustomBackground 
-        imageUrl={customization.effectiveImageUrl || background.imageUrl} 
-        opacity={customization.effectiveOpacity ?? background.opacity} 
-        positionX={customization.effectivePositionX ?? background.positionX} 
-        positionY={customization.effectivePositionY ?? background.positionY} 
-        fit={customization.effectiveFit ?? background.fit} 
-        zoom={customization.effectiveZoom ?? background.zoom} 
-        isPlaying={playback.isPlaying}
-        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
-        schedule={customization.effectiveSchedule || background.schedule}
-      />
       <div className="visualizer-stand-ambient" />
       <div className="visualizer-stand-floor" />
 

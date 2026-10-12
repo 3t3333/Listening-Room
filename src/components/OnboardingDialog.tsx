@@ -82,7 +82,7 @@ export function OnboardingDialog({
               </div>
             </div>
             <h3>3. Choose Listening Room</h3>
-            <p>Select "Listening Room Player" from the list to instantly connect and start streaming.</p>
+            <p>Select "Listening Room Player" from the list (requires Spotify Premium on the same local Wi-Fi). Once selected, play any song in Spotify to stream here!</p>
           </div>
         </div>
 

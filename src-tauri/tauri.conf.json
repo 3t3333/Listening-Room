@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Listening Room",
-  "version": "0.2.0",
+  "version": "0.2.3",
   "identifier": "com.listeningroom.player",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,6 +12,7 @@
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "Listening Room",
         "width": 1280,
         "height": 820,
@@ -26,12 +27,22 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": "all",
+    "category": "Music",
     "shortDescription": "A spatial Spotify listening room",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "longDescription": "A spatial Spotify player and vinyl listening room featuring realistic and classic vinyl turntables, audio visualizers, and customizable live backgrounds.",
+    "icon": ["icons/32x32.png", "icons/64x64.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png", "icons/icon.ico"],
     "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
       "nsis": {
         "installMode": "currentUser"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": ["libwebkit2gtk-4.1-0", "libasound2", "libgtk-3-0", "libayatana-appindicator3-1"]
       }
     }
   }

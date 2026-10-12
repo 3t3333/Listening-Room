@@ -1,7 +1,6 @@
 import type { CSSProperties } from "react";
 import { Disc3 } from "lucide-react";
 import { AudioVisualizer } from "../components/AudioVisualizer";
-import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
 import { ScrollingTitle } from "../components/ScrollingTitle";
 import { TrackDetailsDialog } from "../components/TrackDetailsDialog";
@@ -25,17 +24,6 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
 
   return (
     <section className="theme-scene midnight-theme" style={style}>
-      <CustomBackground 
-        imageUrl={customization.effectiveImageUrl || background.imageUrl} 
-        opacity={customization.effectiveOpacity ?? background.opacity} 
-        positionX={customization.effectivePositionX ?? background.positionX} 
-        positionY={customization.effectivePositionY ?? background.positionY} 
-        fit={customization.effectiveFit ?? background.fit} 
-        zoom={customization.effectiveZoom ?? background.zoom} 
-        isPlaying={playback.isPlaying}
-        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
-        schedule={customization.effectiveSchedule || background.schedule}
-      />
       <div className="midnight-ambient" />
       <AudioVisualizer />
 
@@ -54,7 +42,7 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
       <div className="midnight-meta">
         <div>
           <ScrollingTitle>{track?.name ?? "Nothing playing"}</ScrollingTitle>
-          <p>{track?.artist ?? "Choose a record from your library"}</p>
+          <p>{track?.artist ?? (playback.connected ? "Cast music from Spotify or choose a record" : "Choose a record from your library")}</p>
         </div>
         <PlayerControls compact playback={playback} onToggle={onToggle} onPrevious={onPrevious} onNext={onNext} />
       </div>

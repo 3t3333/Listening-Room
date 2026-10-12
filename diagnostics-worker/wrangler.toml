@@ -1,0 +1,7 @@
+name = "listening-room-diagnostics"
+main = "worker.js"
+compatibility_date = "2024-09-01"
+
+# The DISCORD_WEBHOOK_URL secret should be set securely via:
+# npx wrangler secret put DISCORD_WEBHOOK_URL
+# Or in the Cloudflare Dashboard under Worker -> Settings -> Variables and Secrets.

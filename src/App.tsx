@@ -2,6 +2,7 @@ import { Disc3 } from "lucide-react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { BackgroundSettingsDialog } from "./components/BackgroundSettingsDialog";
+import { CustomBackground } from "./components/CustomBackground";
 import { ThemeIndicator } from "./components/ThemeIndicator";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { Button } from "./components/ui/button";
@@ -10,7 +11,7 @@ import { useCustomBackground } from "./hooks/useCustomBackground";
 import { useActiveCustomization } from "./hooks/useActiveCustomization";
 import { useTheme } from "./hooks/useTheme";
 import { useDjSettings } from "./hooks/useDjSettings";
-import { defaultCollectionId, getCollections, recordRecentlyPlayed, initMp3Artwork } from "./lib/collections";
+import { defaultCollectionId, getCollections, recordRecentlyPlayed, initMp3Artwork, prewarmShelfArtwork } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
 import { mapTrackArtwork } from "./lib/customArtwork";
 import { mp3Player, type Mp3PlaybackState } from "./lib/mp3Player";
@@ -213,6 +214,7 @@ export function App() {
     window.addEventListener("artwork:changed", handleArtworkChanged);
 
     void mp3Player.syncAudioOutput();
+    void initMp3Artwork().then(() => prewarmShelfArtwork());
     void poll();
     return () => {
       cancelled = true;
@@ -353,9 +355,9 @@ export function App() {
   }
 
   const isAtEndOfCurrentAlbum = useCallback((currentTrack: Track | null): boolean => {
-    const album = currentAlbumRef.current;
-    if (!album || album.length === 0) return true;
     if (!currentTrack) return true;
+    const album = currentAlbumRef.current;
+    if (!album || album.length === 0) return false;
     const lastTrack = album[album.length - 1];
     if (isSameTrack(currentTrack, lastTrack)) return true;
     if (
@@ -428,8 +430,8 @@ export function App() {
       return;
     }
 
-    const isEndOfAlbum = !activePlayback.current || isAtEndOfCurrentAlbum(activePlayback.current);
-    const finishedNaturally = wasPlaying && !isCurrentlyPlaying && !userPausedRef.current;
+    const isEndOfAlbum = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
+    const finishedNaturally = wasPlaying && !isCurrentlyPlaying && !userPausedRef.current && isEndOfAlbum;
     const idleAtEnd = !isCurrentlyPlaying && isEndOfAlbum && !userPausedRef.current;
 
     if (finishedNaturally || idleAtEnd) {
@@ -444,7 +446,17 @@ export function App() {
     playNextQueuedAlbum,
   ]);
 
-  const activeCustomization = useActiveCustomization(activePlayback.current, customBackground);
+  const [previewTrack, setPreviewTrack] = useState<Track | null>(null);
+  useEffect(() => {
+    function handlePreview(e: any) {
+      setPreviewTrack(e.detail?.track || null);
+    }
+    window.addEventListener("album:preview-customization", handlePreview);
+    return () => window.removeEventListener("album:preview-customization", handlePreview);
+  }, []);
+
+  const targetBackgroundTrack = previewTrack ?? activePlayback.current;
+  const activeCustomization = useActiveCustomization(targetBackgroundTrack, customBackground);
   const staticArtworkPalette = useArtworkPalette(
     activeCustomization.effectiveMediaType === "video" ? null : activeCustomization.effectiveImageUrl
   );
@@ -470,7 +482,9 @@ export function App() {
     ? "Connecting to Spotify..."
     : playback.status === "reconnecting"
       ? "Reconnecting to Spotify..."
-      : playback.deviceName ?? (playback.connected ? "Spotify connected" : "Offline");
+      : playback.connected
+        ? (playback.active ? (playback.deviceName ?? "Listening Room Player") : `${playback.deviceName ?? "Listening Room"} (Ready • Cast from Spotify)`)
+        : "Offline";
 
   const themeProps: ThemeProps = {
     playback: activePlayback,
@@ -499,7 +513,8 @@ export function App() {
       }
       if (mp3State.current && !mp3State.isPlaying) {
         const isMp3TrackDone = mp3State.duration > 0 && mp3State.currentTime >= mp3State.duration - 0.5;
-        if (albumQueue.length > 0 && isMp3TrackDone) {
+        const isMp3AlbumDone = isAtEndOfCurrentAlbum(mp3State.current);
+        if (albumQueue.length > 0 && isMp3TrackDone && isMp3AlbumDone) {
           userPausedRef.current = false;
           playNextQueuedAlbum();
           return;
@@ -509,16 +524,14 @@ export function App() {
         return;
       }
 
-      // 2. If playback is paused / stopped and we have a queued album waiting, play it!
-      if (!activePlayback.isPlaying && albumQueue.length > 0) {
-        userPausedRef.current = false;
-        playNextQueuedAlbum();
-        return;
-      }
-
-      // 3. If playback is paused at the end of an album with no queue, restart it
+      // 2. If playback is paused/stopped at the end of an album (or idle with no track)
       const isEnd = !activePlayback.current || (!activePlayback.next && isAtEndOfCurrentAlbum(activePlayback.current));
-      if (!activePlayback.isPlaying && isEnd) {
+      if (!activePlayback.isPlaying && isEnd && (!activePlayback.current || !userPausedRef.current)) {
+        if (albumQueue.length > 0) {
+          userPausedRef.current = false;
+          playNextQueuedAlbum();
+          return;
+        }
         if (currentAlbumRef.current && currentAlbumRef.current.length > 0) {
           userPausedRef.current = false;
           void playCollectedTrack(currentAlbumRef.current[0], currentAlbumRef.current);
@@ -526,7 +539,7 @@ export function App() {
         }
       }
 
-      // 4. Normal Spotify play/pause
+      // 3. Normal Spotify play/pause (resumes current paused track, or pauses playing track)
       userPausedRef.current = playback.isPlaying;
       void runPlaybackAction(playback.isPlaying ? player.pause : player.play, !playback.isPlaying);
     },
@@ -544,7 +557,7 @@ export function App() {
         mp3Player.next();
         return;
       }
-      if (!playback.next && albumQueue.length > 0) {
+      if ((!playback.next || isAtEndOfCurrentAlbum(playback.current)) && albumQueue.length > 0) {
         playNextQueuedAlbum();
         return;
       }
@@ -570,6 +583,18 @@ export function App() {
 
   return (
     <main className={`app-shell theme-${theme} vinyl-style-${djSettings.vinylDiscStyle || "realistic"} ${showChrome ? "" : "chrome-hidden"}`} style={shellStyle}>
+      <CustomBackground 
+        imageUrl={activeCustomization.effectiveImageUrl} 
+        opacity={activeCustomization.effectiveOpacity} 
+        positionX={activeCustomization.effectivePositionX}
+        positionY={activeCustomization.effectivePositionY}
+        fit={activeCustomization.effectiveFit}
+        zoom={activeCustomization.effectiveZoom}
+        isPlaying={activePlayback.isPlaying}
+        pauseVideoOnMusicPause={customBackground.pauseVideoOnMusicPause}
+        schedule={activeCustomization.effectiveSchedule || (backgroundPalette as any)?.schedule}
+        className="global-app-background"
+      />
       <header className="topbar" aria-hidden={!showChrome}>
         <div className="wordmark">
           <BackgroundSettingsDialog background={customBackground}>
@@ -593,13 +618,30 @@ export function App() {
         </div>
       </header>
 
-      <div className="theme-transition" key={theme}>
-        {theme === "warm" && <WarmRoomTheme {...themeProps} />}
-        {theme === "midnight" && <MidnightMixTheme {...themeProps} />}
-        {theme === "archive" && <ArchiveRoomTheme {...themeProps} onPlayTrack={playCollectedTrack} onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} onQueueAlbum={handleQueueAlbum} />}
-        {theme === "dj-setup" && <DjSetupTheme {...themeProps} />}
-        {theme === "visualizer-stand" && <VisualizerStandTheme {...themeProps} />}
+      {/* Persistent warm mount for DJ Setup: eliminates 400-800 DOM node mount lag on Page 5 */}
+      <div 
+        className={`dj-persistent-theme-wrapper theme-transition ${theme === "dj-setup" ? "is-active" : ""}`} 
+        style={{ display: theme === "dj-setup" ? "block" : "none" }}
+        aria-hidden={theme !== "dj-setup"}
+      >
+        <DjSetupTheme {...themeProps} />
       </div>
+
+      {theme !== "dj-setup" && (
+        <div className="theme-transition" key={theme}>
+          {theme === "warm" && <WarmRoomTheme {...themeProps} />}
+          {theme === "midnight" && <MidnightMixTheme {...themeProps} />}
+          {theme === "archive" && (
+            <ArchiveRoomTheme 
+              {...themeProps} 
+              onPlayTrack={playCollectedTrack} 
+              onQueueTrack={(track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("This record does not have a Spotify URI."))} 
+              onQueueAlbum={handleQueueAlbum} 
+            />
+          )}
+          {theme === "visualizer-stand" && <VisualizerStandTheme {...themeProps} />}
+        </div>
+      )}
 
       <ThemeIndicator theme={theme} onChange={setTheme} />
       {zoomNotice !== null && <output className="zoom-toast" aria-live="polite">{zoomNotice}%</output>}
@@ -640,6 +682,9 @@ function getRetryDelay(message: string) {
 }
 
 function formatSpotifyError(message: string) {
+  if (message.includes("active Spotify device first")) {
+    return "Listening Room is ready! Open Spotify on your phone or PC and tap play to start listening.";
+  }
   return message.replace(/Retry after (\d+)s\./i, (_, value: string) => {
     const seconds = Number(value);
     if (seconds >= 3600) return `Spotify has asked the app to wait about ${Math.ceil(seconds / 3600)} hours.`;

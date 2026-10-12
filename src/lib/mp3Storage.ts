@@ -405,7 +405,23 @@ export async function importMp3Assets(assets: { audio?: Record<string, string>; 
   }
 }
 
+const MAX_CACHED_ALBUM_BGS = 2;
 const albumBgUrlCache = new Map<string, string>();
+
+function pruneAlbumBgCache(keepAlbumId: string) {
+  if (albumBgUrlCache.size <= MAX_CACHED_ALBUM_BGS) return;
+  for (const [id, url] of albumBgUrlCache.entries()) {
+    if (id !== keepAlbumId) {
+      try {
+        import("./liveWallpaper").then((m) => m.revokeMediaBlob(url));
+      } catch {
+        URL.revokeObjectURL(url);
+      }
+      albumBgUrlCache.delete(id);
+      if (albumBgUrlCache.size <= MAX_CACHED_ALBUM_BGS) break;
+    }
+  }
+}
 
 export async function saveAlbumBackground(albumId: string, blob: Blob): Promise<void> {
   const existing = albumBgUrlCache.get(albumId);
@@ -442,6 +458,7 @@ export async function getAlbumBackgroundUrl(albumId: string): Promise<string | n
     req.onsuccess = () => {
       const blob = req.result as Blob | undefined;
       if (blob) {
+        pruneAlbumBgCache(albumId);
         const url = URL.createObjectURL(blob);
         try {
           // Register mime in blob registry

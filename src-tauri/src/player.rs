@@ -116,7 +116,7 @@ impl PlayerService {
     pub async fn queue(&self) -> Result<Vec<Track>, String> {
         let snapshot = self.queue.borrow().clone();
         if !snapshot.active {
-            return Err("Select Listening Room as the active Spotify device first".to_owned());
+            return Err("Listening Room is ready! Open Spotify on your phone or PC and tap play to start listening.".to_owned());
         }
         let session = self
             .session
@@ -210,10 +210,10 @@ impl PlayerService {
             artist_name = artist_stub.name.clone();
             
             let artist_uri = SpotifyUri::from_uri(&artist_stub.id.to_uri().unwrap()).unwrap();
-            if let Ok(artist) = Artist::get(session, &artist_uri).await {
-                if let Some(portrait) = artist.portraits.first() {
-                    artist_image_url = Some(format!("https://i.scdn.co/image/{}", portrait.id));
-                }
+            if let Ok(artist) = Artist::get(session, &artist_uri).await
+                && let Some(portrait) = artist.portraits.first()
+            {
+                artist_image_url = Some(format!("https://i.scdn.co/image/{}", portrait.id));
             }
         }
 
@@ -230,7 +230,6 @@ impl PlayerService {
                     image_url: item.covers.first().map(|cover| cover.url.clone()).or_else(|| album_cover.clone()),
                     uri: Some(item.uri.clone()),
                     duration_ms: Some(u64::from(item.duration_ms)),
-                    ..Default::default()
                 };
                 tracks.push(t);
             }
@@ -246,7 +245,7 @@ impl PlayerService {
     }
 
     pub async fn restart(&self) -> Result<(), String> {
-        self.request_with(|reply| DaemonCommand::Restart(reply)).await
+        self.request_with(DaemonCommand::Restart).await
     }
 
     pub fn shutdown(&self) {
@@ -513,7 +512,11 @@ async fn run_session(
     {
         Ok(runtime) => runtime,
         Err(error) => {
-            let message = format!("Could not connect the Spotify player: {error}");
+            let message = if error.kind == ErrorKind::PermissionDenied {
+                "Spotify Connect streaming requires a Spotify Premium account. Spotify does not allow third-party Connect playback on Free accounts.".to_owned()
+            } else {
+                format!("Could not connect the Spotify player: {error}")
+            };
             set_error(playback_tx, message.clone());
             return if error.kind == ErrorKind::PermissionDenied {
                 SessionExit::AuthenticationFailed(message)
@@ -664,7 +667,7 @@ fn respond_if_active(
 ) {
     if !queue_tx.borrow().active {
         let _ = reply.send(Err(
-            "Select Listening Room as the active Spotify device first".to_owned(),
+            "Listening Room is ready! Open Spotify on your phone or PC and tap play to start listening.".to_owned(),
         ));
         return;
     }

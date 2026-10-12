@@ -1,4 +1,5 @@
 mod audio;
+pub mod diagnostics;
 #[cfg(feature = "legacy-web-api")]
 mod legacy_web_api;
 mod models;
@@ -90,6 +91,24 @@ pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            } else if let Some((_, window)) = app.webview_windows().into_iter().next() {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+        }))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Destroyed = event
+                && window.label() == "main"
+            {
+                std::process::exit(0);
+            }
+        })
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&app_data_dir)?;
@@ -106,8 +125,8 @@ pub fn run() {
                 }
             });
             app.manage(service);
-            #[cfg(windows)]
             audio::start(app.handle().clone());
+            diagnostics::check_and_upload_pending_crash_reports();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -124,7 +143,12 @@ pub fn run() {
             restart_daemon,
             set_volume,
             get_audio_outputs,
-            set_audio_output
+            set_audio_output,
+            diagnostics::submit_diagnostic_report,
+            diagnostics::test_diagnostic_webhook,
+            diagnostics::get_system_diagnostics,
+            diagnostics::save_diagnostics_url,
+            diagnostics::trigger_test_crash
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Listening Room");

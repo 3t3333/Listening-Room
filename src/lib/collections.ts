@@ -67,6 +67,33 @@ export async function initMp3Artwork(): Promise<void> {
   if (anyChanged) {
     saveCollections(collections);
   }
+
+  prewarmShelfArtwork();
+}
+
+export function prewarmShelfArtwork(): void {
+  try {
+    const records = getCollections().filter((c) => c.type === "record");
+    if (records.length === 0) return;
+
+    const schedule =
+      typeof window !== "undefined" && (window as any).requestIdleCallback
+        ? (window as any).requestIdleCallback
+        : (cb: () => void) => setTimeout(cb, 300);
+
+    schedule(() => {
+      for (const record of records) {
+        const url = record.tracks?.[0]?.imageUrl;
+        if (url) {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = url;
+        }
+      }
+    });
+  } catch {
+    // Ignore background pre-warm errors
+  }
 }
 
 export function getCollections(): Collection[] {

@@ -1,4 +1,4 @@
-import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop, Loader2 } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop, Loader2, Activity } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
 import { player, type AudioOutputState } from "../lib/player";
@@ -10,12 +10,13 @@ import { useMp3Settings } from "../hooks/useMp3Settings";
 import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds, exportGlobalBackground, importGlobalBackground } from "../lib/mp3Storage";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
 import { isVideoMedia } from "../lib/liveWallpaper";
+import { DiagnosticsTab } from "./DiagnosticsTab";
 
 export function BackgroundSettingsDialog({ background, children }: { background: CustomBackgroundState; children: ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"background" | "audio" | "playback" | "data">("background");
+  const [tab, setTab] = useState<"background" | "audio" | "playback" | "data" | "diagnostics">("background");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [scanProgress, setScanProgress] = useState<number | null>(null);
@@ -270,6 +271,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
             <button type="button" className={`settings-tab ${tab === "audio" ? "active" : ""}`} onClick={() => setTab("audio")}><Speaker size={15} />Audio output</button>
             <button type="button" className={`settings-tab ${tab === "playback" ? "active" : ""}`} onClick={() => setTab("playback")}><Disc3 size={15} />DJ Setup</button>
             <button type="button" className={`settings-tab ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")}><Database size={15} />Data & Backup</button>
+            <button type="button" className={`settings-tab ${tab === "diagnostics" ? "active" : ""}`} onClick={() => setTab("diagnostics")}><Activity size={15} />Diagnostics</button>
           </div>
         </aside>
         
@@ -1014,6 +1016,17 @@ export function BackgroundSettingsDialog({ background, children }: { background:
               <p style={{ marginTop: '20px', color: '#888', fontSize: '13px', lineHeight: '1.5' }}>
                 Note: This backup includes all your saved albums, custom artworks, MP3 audio files, and theme preferences. It does not include your Spotify credentials. When you import this file, the app will restore all audio and settings, then reload.
               </p>
+            </section>
+          )}
+
+          {tab === "diagnostics" && (
+            <section className="settings-panel">
+              <header>
+                <span>Telemetry & Diagnostics</span>
+                <h2>Diagnostics Sentinel</h2>
+                <p>Configure your serverless proxy, test Discord delivery, and submit diagnostics.</p>
+              </header>
+              <DiagnosticsTab />
             </section>
           )}
         </DialogContent>

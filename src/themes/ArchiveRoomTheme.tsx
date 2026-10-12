@@ -1,6 +1,5 @@
 import { ArrowLeft, Disc3, ListMusic, ListPlus, LoaderCircle, Play, RefreshCw, FolderPlus, Disc, Trash2 } from "lucide-react";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent } from "react";
-import { CustomBackground } from "../components/CustomBackground";
 import { InteractiveSleeve } from "../components/InteractiveSleeve";
 import { PlayerControls } from "../components/PlayerControls";
 import { Button } from "../components/ui/button";
@@ -84,7 +83,11 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
     sleeve.style.setProperty("--lift-y", `${target.top - root.top - focusedRecord.source.top}px`);
     sleeve.style.setProperty("--lift-scale", String(target.width / focusedRecord.source.width));
     const frame = window.requestAnimationFrame(() => setLifted(true));
-    return () => window.cancelAnimationFrame(frame);
+    window.dispatchEvent(new CustomEvent("album:preview-customization", { detail: { track: focusedRecord.track } }));
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.dispatchEvent(new CustomEvent("album:preview-customization", { detail: { track: null } }));
+    };
   }, [focusedRecord]);
 
   async function playTrack(track: Track, source: Collection) {
@@ -167,17 +170,6 @@ export function ArchiveRoomTheme({ playback, background, albumQueue, onToggle, o
 
   return (
     <section className="theme-scene archive-theme" style={style} ref={themeRoot}>
-      <CustomBackground 
-        imageUrl={background.imageUrl} 
-        opacity={background.opacity} 
-        positionX={background.positionX} 
-        positionY={background.positionY} 
-        fit={background.fit} 
-        zoom={background.zoom} 
-        isPlaying={playback.isPlaying}
-        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
-        schedule={background.schedule}
-      />
       <div className="archive-ambient" />
       <div className="archive-room">
         {isCreatingMp3 ? (

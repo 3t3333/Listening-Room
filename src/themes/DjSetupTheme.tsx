@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { Disc3 } from "lucide-react";
 import { player, type Track } from "../lib/player";
 import { DjTurntable } from "../components/DjTurntable";
-import { CustomBackground } from "../components/CustomBackground";
 import { PlayerControls } from "../components/PlayerControls";
 import { ScrollingTitle } from "../components/ScrollingTitle";
 import { BlockVisualizer } from "../components/BlockVisualizer";
@@ -166,6 +165,14 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
   const [inspectingCollection, setInspectingCollection] = useState<{ collection: import("../lib/collections").Collection, rect: DOMRect } | null>(null);
   const [flyingRecord, setFlyingRecord] = useState<{ record: import("../lib/collections").Collection, track: any, sourceRect: DOMRect, targetRect: DOMRect } | null>(null);
   const pageContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const track = inspectingCollection?.collection.tracks?.[0] || null;
+    window.dispatchEvent(new CustomEvent("album:preview-customization", { detail: { track } }));
+    return () => {
+      window.dispatchEvent(new CustomEvent("album:preview-customization", { detail: { track: null } }));
+    };
+  }, [inspectingCollection]);
 
   const targetTrack = inspectingCollection?.collection.tracks?.[0] ?? playback.current;
   const customization = useActiveCustomization(targetTrack, background);
@@ -451,18 +458,6 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
 
   return (
     <div className="dj-theme-root" style={{ width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
-      <CustomBackground 
-        imageUrl={customization.effectiveImageUrl} 
-        opacity={customization.effectiveOpacity} 
-        positionX={customization.effectivePositionX}
-        positionY={customization.effectivePositionY}
-        fit={customization.effectiveFit}
-        zoom={customization.effectiveZoom}
-        isPlaying={playback.isPlaying}
-        pauseVideoOnMusicPause={background.pauseVideoOnMusicPause}
-        schedule={customization.effectiveSchedule || background.schedule}
-        className="dj-page-background"
-      />
       <div 
         ref={pageContainerRef} 
         className={`dj-page-container ${settings.enableGlassyShelf !== false ? "with-glassy-shelf" : "no-glassy-shelf"} ${isVerticalRig ? "is-vertical-rig" : "is-horizontal-rig"}`} 
@@ -477,7 +472,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
 
         <div className="dj-top-meta">
           <ScrollingTitle>{playback.current?.name ?? "Nothing playing"}</ScrollingTitle>
-          <p>{playback.current?.artist ?? "Choose a record from your library"}</p>
+          <p>{playback.current?.artist ?? (playback.connected ? "Cast music from Spotify or choose a record from your library" : "Choose a record from your library")}</p>
         </div>
 
         {isVerticalRig ? (
@@ -567,7 +562,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         </div>
       </div>
       
-      <SpineShelf theme={currentTurntableTheme} onInspect={(col, rect) => setInspectingCollection({ collection: col, rect })} />
+      <SpineShelf theme={currentTurntableTheme} isDark={settings.isDark} onInspect={(col, rect) => setInspectingCollection({ collection: col, rect })} />
         {inspectingCollection && (
           <InlineRecordViewer 
             record={inspectingCollection.collection} 
