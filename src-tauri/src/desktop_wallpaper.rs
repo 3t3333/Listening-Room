@@ -102,10 +102,11 @@ mod windows_impl {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CallWindowProcW, DefWindowProcW, GetWindowLongPtrW, SetParent, SetWindowLongPtrW,
         SetWindowPos, ShowWindow, GWLP_WNDPROC, GWL_EXSTYLE, GWL_STYLE, HWND_BOTTOM,
-        HWND_NOTOPMOST, SC_MINIMIZE, SWP_FRAMECHANGED, SWP_HIDEWINDOW,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOW,
-        WINDOWPOS, WM_DISPLAYCHANGE, WM_SHOWWINDOW, WM_SYSCOMMAND, WM_WINDOWPOSCHANGING,
-        WNDPROC, WS_CAPTION, WS_CHILD, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX,
+        HWND_NOTOPMOST, MINMAXINFO, SC_MAXIMIZE, SC_MINIMIZE, SWP_FRAMECHANGED,
+        SWP_HIDEWINDOW, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_RESTORE,
+        SW_SHOW, WINDOWPOS, WM_DISPLAYCHANGE, WM_GETMINMAXINFO, WM_SHOWWINDOW, WM_SIZE,
+        WM_SYSCOMMAND, WM_WINDOWPOSCHANGING, WNDPROC, WS_CAPTION, WS_CHILD, WS_CLIPCHILDREN,
+        WS_CLIPSIBLINGS, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_MAXIMIZEBOX,
         WS_MINIMIZEBOX, WS_POPUP, WS_SYSMENU, WS_THICKFRAME,
     };
 
@@ -114,7 +115,12 @@ mod windows_impl {
     static TARGET_MONITOR_INDEX: std::sync::atomic::AtomicIsize = std::sync::atomic::AtomicIsize::new(-1);
     static IS_WALLPAPER_MODE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-    /// Attaches the Win32 window message subclass for HWND_BOTTOM interactive mode
+    static TARGET_X: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    static TARGET_Y: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+    static TARGET_W: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1920);
+    static TARGET_H: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(1080);
+
+    /// Attaches the Win32 window message subclass for desktop protection
     pub unsafe fn hook_subclass(hwnd: HWND) {
         ACTIVE_HWND.store(hwnd as isize, std::sync::atomic::Ordering::SeqCst);
         let current_prev = PREV_WNDPROC.load(std::sync::atomic::Ordering::SeqCst);
@@ -143,7 +149,8 @@ mod windows_impl {
         ACTIVE_HWND.store(0, std::sync::atomic::Ordering::SeqCst);
     }
 
-    /// Window subclass procedure that shields Listening Room from Win + D (Show Desktop)
+    /// Window subclass procedure that shields Listening Room from Win + D (Show Desktop),
+    /// GlazeWM shortcuts (Alt+M toggle-minimized), and any programmatic minimization/hiding.
     unsafe extern "system" fn desktop_subclass_proc(
         hwnd: HWND,
         msg: u32,
@@ -159,15 +166,19 @@ mod windows_impl {
 
         match msg {
             WM_WINDOWPOSCHANGING => {
-                // Explorer / Win+D attempts to apply SWP_HIDEWINDOW to all desktop windows,
-                // or displace them off-screen to x = -32000.
-                // We strip these flags and enforce HWND_BOTTOM to keep Listening Room pinned behind apps.
+                // Explorer (Win+D) and tiling managers like GlazeWM attempt to apply SWP_HIDEWINDOW
+                // or displace the window off-screen to x = -32000.
+                // We strip these flags, clamp bounds, and enforce lowest Z-order on desktop.
                 if lparam != 0 {
                     unsafe {
                         let pos = &mut *(lparam as *mut WINDOWPOS);
                         pos.flags &= !SWP_HIDEWINDOW;
-                        if pos.x == -32000 {
+                        if pos.x <= -10000 || pos.y <= -10000 {
                             pos.flags |= SWP_NOMOVE | SWP_NOSIZE;
+                            pos.x = TARGET_X.load(std::sync::atomic::Ordering::Relaxed);
+                            pos.y = TARGET_Y.load(std::sync::atomic::Ordering::Relaxed);
+                            pos.cx = TARGET_W.load(std::sync::atomic::Ordering::Relaxed);
+                            pos.cy = TARGET_H.load(std::sync::atomic::Ordering::Relaxed);
                         }
                         if !IS_WALLPAPER_MODE.load(std::sync::atomic::Ordering::Relaxed) {
                             pos.hwndInsertAfter = HWND_BOTTOM;
@@ -176,16 +187,42 @@ mod windows_impl {
                 }
             }
             WM_SHOWWINDOW => {
-                // When wParam is 0 (FALSE), Windows or Explorer is asking the window to hide (e.g. Win + D).
-                // Block this request to ensure Win + D never causes Listening Room to vanish.
+                // When wParam is 0 (FALSE), Windows or an external window manager is asking to hide the window.
+                // Block this request unconditionally to ensure the desktop background never vanishes.
                 if wparam == 0 {
                     return 0;
                 }
             }
             WM_SYSCOMMAND => {
-                // Intercept and swallow minimize commands from keyboard or taskbar
+                // Intercept and swallow minimize and maximize commands from keyboard (Alt+M, Win+Down) or taskbar
                 let cmd = (wparam & 0xFFF0) as u32;
-                if cmd == SC_MINIMIZE {
+                if cmd == SC_MINIMIZE || cmd == SC_MAXIMIZE {
+                    return 0;
+                }
+            }
+            WM_SIZE => {
+                const SIZE_MINIMIZED: usize = 1;
+                if wparam == SIZE_MINIMIZED {
+                    // If an external window manager somehow called ShowWindow(SW_MINIMIZE) directly,
+                    // immediately force restore so it never stays minimized.
+                    unsafe {
+                        ShowWindow(hwnd, SW_RESTORE);
+                    }
+                    return 0;
+                }
+            }
+            WM_GETMINMAXINFO => {
+                // Enforce that Windows refuses to shrink or track the window below target monitor size
+                if lparam != 0 {
+                    unsafe {
+                        let mmi = &mut *(lparam as *mut MINMAXINFO);
+                        let w = TARGET_W.load(std::sync::atomic::Ordering::Relaxed);
+                        let h = TARGET_H.load(std::sync::atomic::Ordering::Relaxed);
+                        mmi.ptMinTrackSize.x = w;
+                        mmi.ptMinTrackSize.y = h;
+                        mmi.ptMaxSize.x = w;
+                        mmi.ptMaxSize.y = h;
+                    }
                     return 0;
                 }
             }
@@ -195,6 +232,8 @@ mod windows_impl {
                 let new_h = ((lparam >> 16) & 0xFFFF) as i32;
                 let mon_idx = TARGET_MONITOR_INDEX.load(std::sync::atomic::Ordering::Relaxed);
                 if mon_idx == -1 && !IS_WALLPAPER_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+                    TARGET_W.store(new_w, std::sync::atomic::Ordering::Relaxed);
+                    TARGET_H.store(new_h, std::sync::atomic::Ordering::Relaxed);
                     unsafe {
                         SetWindowPos(
                             hwnd,
@@ -274,6 +313,14 @@ mod windows_impl {
             std::sync::atomic::Ordering::SeqCst,
         );
 
+        TARGET_X.store(target_x, std::sync::atomic::Ordering::SeqCst);
+        TARGET_Y.store(target_y, std::sync::atomic::Ordering::SeqCst);
+        TARGET_W.store(target_w, std::sync::atomic::Ordering::SeqCst);
+        TARGET_H.store(target_h, std::sync::atomic::Ordering::SeqCst);
+
+        // Update window title so window managers (like GlazeWM) identify it as desktop background
+        let _ = window.set_title("Listening Room - Desktop Background");
+
         // Crucial: Strip decorations, disable resize handles, set full monitor size via Tauri first
         let _ = window.set_decorations(false);
         let _ = window.set_resizable(false);
@@ -281,12 +328,30 @@ mod windows_impl {
         let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: target_w as u32, height: target_h as u32 }));
         let _ = window.set_skip_taskbar(true);
 
+        // Apply Win32 styles so GlazeWM, Windows Shell, and Alt-Tab treat this as an unmanaged surface
+        unsafe {
+            let current_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
+            let new_style = (current_style
+                & !(WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU) as isize)
+                | (WS_CLIPSIBLINGS | WS_CLIPCHILDREN) as isize
+                | (WS_POPUP as isize);
+            SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
+
+            let current_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            // WS_EX_TOOLWINDOW: Removes from Alt+Tab, taskbar, and tiling manager lists.
+            // WS_EX_NOACTIVATE: Ensures clicking it never makes it the active foreground window,
+            // preventing Alt+M or window shortcuts in GlazeWM from ever targeting it.
+            let new_ex = (current_ex & !(WS_EX_APPWINDOW as isize))
+                | (WS_EX_TOOLWINDOW as isize)
+                | (WS_EX_NOACTIVATE as isize);
+            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
+
+            // Keep the protective subclass hooked in BOTH wallpaper and interactive modes!
+            hook_subclass(hwnd);
+        }
+
         if mode == "wallpaper" {
             // --- MODE 1: TRUE DESKTOP (WorkerW via tauri-plugin-wallpaper) ---
-            unsafe {
-                unhook_subclass(hwnd);
-            }
-
             use tauri_plugin_wallpaper::{AttachRequest, WallpaperExt};
             let mut req = AttachRequest::new(window.label()).with_input_forwarding(true, true);
             if let Some(ref name) = target_name {
@@ -332,15 +397,18 @@ mod windows_impl {
             // Ensure detached from any parent window
             SetParent(hwnd, std::ptr::null_mut());
 
-            // Style as borderless popup
+            // Style as borderless popup with no minimize/maximize capability
             let current_style = GetWindowLongPtrW(hwnd, GWL_STYLE);
             let new_style = (current_style
                 & !(WS_CHILD | WS_CAPTION | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SYSMENU) as isize)
+                | (WS_CLIPSIBLINGS | WS_CLIPCHILDREN) as isize
                 | (WS_POPUP as isize);
             SetWindowLongPtrW(hwnd, GWL_STYLE, new_style);
 
             let current_ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            let new_ex = (current_ex & !(WS_EX_APPWINDOW as isize)) | (WS_EX_TOOLWINDOW as isize);
+            let new_ex = (current_ex & !(WS_EX_APPWINDOW as isize))
+                | (WS_EX_TOOLWINDOW as isize)
+                | (WS_EX_NOACTIVATE as isize);
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_ex);
 
             // Position at bottom of desktop stack covering 100% of the display
@@ -354,7 +422,7 @@ mod windows_impl {
                 SWP_NOACTIVATE | SWP_FRAMECHANGED | SWP_SHOWWINDOW,
             );
 
-            // Subclass window to intercept WM_WINDOWPOSCHANGING / WM_SHOWWINDOW / WM_SYSCOMMAND
+            // Subclass window to intercept WM_WINDOWPOSCHANGING / WM_SHOWWINDOW / WM_SYSCOMMAND / WM_SIZE
             hook_subclass(hwnd);
         }
 
@@ -426,6 +494,7 @@ mod windows_impl {
             }
         }
 
+        let _ = window.set_title("Listening Room");
         let _ = window.set_skip_taskbar(false);
         let _ = window.show();
         let _ = window.set_focus();
