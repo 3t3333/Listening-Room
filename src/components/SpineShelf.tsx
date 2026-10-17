@@ -182,7 +182,6 @@ export function SpineShelf({
 
 function SpineRecord({ collection, onInspect }: { collection: Collection, onInspect: (record: Collection, rect: DOMRect) => void }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [isHovered, setIsHovered] = useState(false);
   const track = collection.tracks?.[0];
   if (!track) return null;
 
@@ -190,8 +189,6 @@ function SpineRecord({ collection, onInspect }: { collection: Collection, onInsp
     <div 
       className="spine-record-wrapper" 
       ref={ref}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       onClick={() => {
         if (ref.current) {
           onInspect(collection, ref.current.getBoundingClientRect());
@@ -211,15 +208,13 @@ function SpineRecord({ collection, onInspect }: { collection: Collection, onInsp
         <span className="spine-record-plastic" />
         <span className="spine-record-shine" />
       </div>
-      {isHovered && (
-        <div className="spine-record-tooltip is-visible">
-           {track.imageUrl && <img src={track.imageUrl} alt="" className="spine-tooltip-art" decoding="async" draggable={false} />}
-           <div className="spine-record-tooltip-text">
-             <strong>{collection.name}</strong>
-             <small>{collection.artist}</small>
-           </div>
-        </div>
-      )}
+      <div className="spine-record-tooltip">
+         {track.imageUrl && <img src={track.imageUrl} alt="" className="spine-tooltip-art" decoding="async" draggable={false} />}
+         <div className="spine-record-tooltip-text">
+           <strong>{collection.name}</strong>
+           <small>{collection.artist}</small>
+         </div>
+      </div>
     </div>
   );
 }

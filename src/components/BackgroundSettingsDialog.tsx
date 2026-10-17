@@ -1,4 +1,4 @@
-import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop, Loader2, Activity } from "lucide-react";
+import { ImagePlus, Palette, RefreshCw, SlidersHorizontal, Speaker, Trash2, Disc3, Database, Download, Upload, Crop, Loader2, Activity, Monitor, Check, Sparkles } from "lucide-react";
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import type { CustomBackgroundState } from "../hooks/useCustomBackground";
 import { player, type AudioOutputState } from "../lib/player";
@@ -7,7 +7,8 @@ import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle, DialogTrigger } from "./ui/dialog";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { useMp3Settings } from "../hooks/useMp3Settings";
-import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds, exportGlobalBackground, importGlobalBackground } from "../lib/mp3Storage";
+import { useDesktopWallpaper } from "../hooks/useDesktopWallpaper";
+import { exportMp3Assets, importMp3Assets, exportAlbumBackgrounds, importAlbumBackgrounds, exportGlobalBackground, importGlobalBackground, exportCenterLabels, importCenterLabels } from "../lib/mp3Storage";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
 import { isVideoMedia } from "../lib/liveWallpaper";
 import { DiagnosticsTab } from "./DiagnosticsTab";
@@ -16,7 +17,8 @@ export function BackgroundSettingsDialog({ background, children }: { background:
   const input = useRef<HTMLInputElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"background" | "audio" | "playback" | "data" | "diagnostics">("background");
+  const [tab, setTab] = useState<"background" | "desktop" | "audio" | "playback" | "data" | "diagnostics">("background");
+  const desktopWallpaper = useDesktopWallpaper();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [scanProgress, setScanProgress] = useState<number | null>(null);
@@ -83,6 +85,16 @@ export function BackgroundSettingsDialog({ background, children }: { background:
       } catch (bgErr: any) {
         console.warn("Failed to package album backgrounds:", bgErr);
       }
+
+      // Package album center labels from IndexedDB
+      try {
+        const centerLabels = await exportCenterLabels();
+        if (Object.keys(centerLabels).length > 0) {
+          data["center-labels"] = centerLabels;
+        }
+      } catch (lblErr: any) {
+        console.warn("Failed to package album center labels:", lblErr);
+      }
       
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -127,6 +139,11 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           await importAlbumBackgrounds(data["album-backgrounds"]);
         }
 
+        // Restore custom album center labels to IndexedDB if present
+        if (data["center-labels"]) {
+          await importCenterLabels(data["center-labels"]);
+        }
+
         // Clean up listening-room-collections before writing to localStorage
         // Avoid storing multi-megabyte base64 strings in localStorage.
         // If an imported collection contains base64 image strings, convert them to lightweight
@@ -157,6 +174,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
         const INDEXED_DB_ASSET_KEYS = new Set([
           "mp3-assets",
           "album-backgrounds",
+          "center-labels",
           "global-background",
           "custom-background", // global background blob lives in IndexedDB, not localStorage
         ]);
@@ -268,6 +286,7 @@ export function BackgroundSettingsDialog({ background, children }: { background:
           <DialogTitle>Settings</DialogTitle>
           <div className="settings-tabs">
             <button type="button" className={`settings-tab ${tab === "background" ? "active" : ""}`} onClick={() => setTab("background")}><SlidersHorizontal size={15} />Background</button>
+            <button type="button" className={`settings-tab ${tab === "desktop" ? "active" : ""}`} onClick={() => setTab("desktop")}><Monitor size={15} />Desktop Mode</button>
             <button type="button" className={`settings-tab ${tab === "audio" ? "active" : ""}`} onClick={() => setTab("audio")}><Speaker size={15} />Audio output</button>
             <button type="button" className={`settings-tab ${tab === "playback" ? "active" : ""}`} onClick={() => setTab("playback")}><Disc3 size={15} />DJ Setup</button>
             <button type="button" className={`settings-tab ${tab === "data" ? "active" : ""}`} onClick={() => setTab("data")}><Database size={15} />Data & Backup</button>
@@ -502,6 +521,182 @@ export function BackgroundSettingsDialog({ background, children }: { background:
               title="Custom Wallpaper Framing & Crop"
               description="Adjust what part of your photo fits your screen. Ideal for portrait photos to showcase faces and headroom, or choosing between fill and ambient full-image."
             />
+          </section>
+        )}
+
+        {tab === "desktop" && (
+          <section className="settings-panel">
+            <header>
+              <span>Windows Integration</span>
+              <h2>Desktop Background (Live Wallpaper) Mode</h2>
+              <p>Turn Listening Room into your Windows desktop background. Run the app directly on your desktop under all open windows without needing an open application window.</p>
+            </header>
+
+            {/* Primary Enable / Disable Card */}
+            <div style={{
+              background: desktopWallpaper.enabled ? 'rgba(0, 210, 106, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+              border: desktopWallpaper.enabled ? '1px solid rgba(0, 210, 106, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+              padding: '18px 20px',
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '20px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <Monitor size={28} style={{ color: desktopWallpaper.enabled ? 'var(--primary, #00d26a)' : '#888' }} />
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#f1eee7' }}>
+                    Desktop Background Mode
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>
+                    {desktopWallpaper.enabled ? "Active — Listening Room is currently docked as your desktop background" : "Currently in standard application window mode"}
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant={desktopWallpaper.enabled ? "default" : "outline"}
+                onClick={() => void desktopWallpaper.toggleDesktopMode()}
+                disabled={desktopWallpaper.loading}
+                style={{ minWidth: '160px' }}
+              >
+                {desktopWallpaper.loading ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : desktopWallpaper.enabled ? (
+                  "Exit Desktop Mode"
+                ) : (
+                  "Enable Desktop Mode"
+                )}
+              </Button>
+            </div>
+
+            {/* Mode Selection */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '22px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: '#ddd' }}>Interaction & Wallpaper Style</label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {/* Interactive Desktop Card */}
+                <div
+                  onClick={() => desktopWallpaper.setMode("interactive")}
+                  style={{
+                    background: desktopWallpaper.mode === "interactive" ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.02)',
+                    border: desktopWallpaper.mode === "interactive" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '8px',
+                    padding: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1eee7' }}>Interactive Desktop</span>
+                    {desktopWallpaper.mode === "interactive" && <Check size={16} style={{ color: 'var(--primary, #00d26a)' }} />}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
+                    Direct mouse & touch interaction on your desktop. Win + D shielded via subclassing. Click turntables, pull albums, and adjust volume directly. Best for clean desktops with icons hidden.
+                  </p>
+                </div>
+
+                {/* Behind Icons Wallpaper Card */}
+                <div
+                  onClick={() => desktopWallpaper.setMode("wallpaper")}
+                  style={{
+                    background: desktopWallpaper.mode === "wallpaper" ? 'rgba(255, 255, 255, 0.07)' : 'rgba(255, 255, 255, 0.02)',
+                    border: desktopWallpaper.mode === "wallpaper" ? '1px solid var(--primary, #00d26a)' : '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '8px',
+                    padding: '14px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1eee7' }}>True Wallpaper (WorkerW)</span>
+                    {desktopWallpaper.mode === "wallpaper" && <Check size={16} style={{ color: 'var(--primary, #00d26a)' }} />}
+                  </div>
+                  <p style={{ margin: 0, fontSize: '11px', color: '#888', lineHeight: '1.4' }}>
+                    Wallpaper Engine-style deep shell integration inside Windows Explorer WorkerW. Fully reparented as a child layer, immune to Win + D. Desktop icons remain on top. Controlled via the Windows System Tray.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Display / Monitor Selector */}
+            {desktopWallpaper.monitors.length > 1 && (
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ fontSize: '13px', fontWeight: 600, color: '#ddd', display: 'block', marginBottom: '6px' }}>
+                  Display Target
+                </label>
+                <select
+                  value={desktopWallpaper.selectedMonitor === null ? "" : desktopWallpaper.selectedMonitor}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    desktopWallpaper.setSelectedMonitor(val === "" ? null : Number(val));
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    background: '#18181b',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#eee',
+                    fontSize: '13px',
+                  }}
+                >
+                  <option value="">Primary Display</option>
+                  {desktopWallpaper.monitors.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.width}x{m.height}) {m.is_primary ? "— Primary" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Eco & Performance Throttling Toggle */}
+            <div style={{ paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', marginBottom: '18px' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={desktopWallpaper.ecoMode}
+                  onChange={(e) => desktopWallpaper.setEcoMode(e.target.checked)}
+                  style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: 'var(--primary, #00d26a)', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', color: '#f1eee7', fontWeight: 500 }}>
+                    Game & Battery Eco-Throttling
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', lineHeight: '1.4' }}>
+                    Automatically reduces animation frame rate and pauses visualizer when you are working inside other full-screen apps or playing games to preserve 100% CPU and GPU performance.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {/* System Tray Info Callout */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px solid rgba(255, 255, 255, 0.06)',
+              borderRadius: '6px',
+              padding: '12px 14px',
+              fontSize: '12px',
+              color: '#aaa',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              lineHeight: '1.4'
+            }}>
+              <Sparkles size={16} style={{ color: 'var(--primary, #00d26a)', flexShrink: 0 }} />
+              <span>
+                <strong>System Tray Controller:</strong> Listening Room stays accessible in your Windows taskbar notification area (near the clock). Right-click the icon anytime to control playback, skip tracks, or toggle desktop mode.
+              </span>
+            </div>
+
+            {desktopWallpaper.error && (
+              <small className="settings-error" style={{ display: 'block', marginTop: '10px' }}>
+                {desktopWallpaper.error}
+              </small>
+            )}
           </section>
         )}
 

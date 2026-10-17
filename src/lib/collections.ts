@@ -16,6 +16,15 @@ export interface CollectionCustomization {
   equalizerColorMode?: "adapt" | "custom"; // "adapt" matches background/artwork
   equalizerCustomColor?: string | null;   // hex string e.g. "#00d26a"
   vinylColor?: string | null;             // hex string e.g. "#c01525" or null for default black
+  hasCenterLabel?: boolean;
+  centerLabelPositionX?: number;
+  centerLabelPositionY?: number;
+  centerLabelZoom?: number;
+  hasCenterLabelSideB?: boolean;
+  centerLabelSideBPositionX?: number;
+  centerLabelSideBPositionY?: number;
+  centerLabelSideBZoom?: number;
+  showRecordLabelText?: boolean; // default true, uncheck to disable generated tracklist text on vinyl center
 }
 
 export interface Collection {

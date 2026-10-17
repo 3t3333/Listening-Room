@@ -4,9 +4,10 @@ import { Button } from "./ui/button";
 import { SlidersHorizontal, ImagePlus, Trash2, Palette, Disc3, Check, Crop, ListMusic, Loader2 } from "lucide-react";
 import type { Collection, CollectionCustomization } from "../lib/collections";
 import { updateCollectionCustomization } from "../lib/collections";
-import { saveAlbumBackground, deleteAlbumBackground, getAlbumBackgroundUrl } from "../lib/mp3Storage";
+import { saveAlbumBackground, deleteAlbumBackground, getAlbumBackgroundUrl, saveCenterLabel, deleteCenterLabel, getCenterLabelUrl } from "../lib/mp3Storage";
 import { VINYL_COLOR_PRESETS, getVinylColorStyle } from "../lib/vinylColors";
 import { BackgroundFramingDialog } from "./BackgroundFramingDialog";
+import { CenterLabelCropperDialog } from "./CenterLabelCropperDialog";
 import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
 import {
   isVideoMedia,
@@ -59,6 +60,25 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
   const [eqColor, setEqColor] = useState(initialCustomization.equalizerCustomColor || "#00d26a");
 
   const [vinylColor, setVinylColor] = useState<string | null>(initialCustomization.vinylColor || null);
+  const [hasCenterLabel, setHasCenterLabel] = useState(!!initialCustomization.hasCenterLabel);
+  const [centerLabelBlob, setCenterLabelBlob] = useState<Blob | null>(null);
+  const [centerLabelPreviewUrl, setCenterLabelPreviewUrl] = useState<string | null>(null);
+  const [isRemovingCenterLabel, setIsRemovingCenterLabel] = useState(false);
+  const [centerLabelPosX, setCenterLabelPosX] = useState(initialCustomization.centerLabelPositionX ?? 50);
+  const [centerLabelPosY, setCenterLabelPosY] = useState(initialCustomization.centerLabelPositionY ?? 50);
+  const [centerLabelZoom, setCenterLabelZoom] = useState(initialCustomization.centerLabelZoom ?? 100);
+
+  const [hasCenterLabelSideB, setHasCenterLabelSideB] = useState(!!initialCustomization.hasCenterLabelSideB);
+  const [centerLabelSideBBlob, setCenterLabelSideBBlob] = useState<Blob | null>(null);
+  const [centerLabelSideBPreviewUrl, setCenterLabelSideBPreviewUrl] = useState<string | null>(null);
+  const [isRemovingCenterLabelSideB, setIsRemovingCenterLabelSideB] = useState(false);
+  const [centerLabelSideBPosX, setCenterLabelSideBPosX] = useState(initialCustomization.centerLabelSideBPositionX ?? 50);
+  const [centerLabelSideBPosY, setCenterLabelSideBPosY] = useState(initialCustomization.centerLabelSideBPositionY ?? 50);
+  const [centerLabelSideBZoom, setCenterLabelSideBZoom] = useState(initialCustomization.centerLabelSideBZoom ?? 100);
+
+  const [cropperSide, setCropperSide] = useState<"a" | "b" | null>(null);
+  const [showRecordLabelText, setShowRecordLabelText] = useState(initialCustomization.showRecordLabelText !== false);
+
   const [isSaving, setIsSaving] = useState(false);
   const [tracklistEditorOpen, setTracklistEditorOpen] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<Collection>(record);
@@ -79,12 +99,44 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
       setBgBlob(null);
       setIsRemovingBg(false);
 
+      setHasCenterLabel(!!cust.hasCenterLabel);
+      setCenterLabelPosX(cust.centerLabelPositionX ?? 50);
+      setCenterLabelPosY(cust.centerLabelPositionY ?? 50);
+      setCenterLabelZoom(cust.centerLabelZoom ?? 100);
+      setShowRecordLabelText(cust.showRecordLabelText !== false);
+      setCenterLabelBlob(null);
+      setIsRemovingCenterLabel(false);
+
+      setHasCenterLabelSideB(!!cust.hasCenterLabelSideB);
+      setCenterLabelSideBPosX(cust.centerLabelSideBPositionX ?? 50);
+      setCenterLabelSideBPosY(cust.centerLabelSideBPositionY ?? 50);
+      setCenterLabelSideBZoom(cust.centerLabelSideBZoom ?? 100);
+      setCenterLabelSideBBlob(null);
+      setIsRemovingCenterLabelSideB(false);
+      setCropperSide(null);
+
       if (cust.hasCustomBackground) {
         getAlbumBackgroundUrl(record.id).then((url) => {
           setBgPreviewUrl(url);
         });
       } else {
         setBgPreviewUrl(null);
+      }
+
+      if (cust.hasCenterLabel) {
+        getCenterLabelUrl(record.id, "a").then((url) => {
+          setCenterLabelPreviewUrl(url);
+        });
+      } else {
+        setCenterLabelPreviewUrl(null);
+      }
+
+      if (cust.hasCenterLabelSideB) {
+        getCenterLabelUrl(record.id, "b").then((url) => {
+          setCenterLabelSideBPreviewUrl(url);
+        });
+      } else {
+        setCenterLabelSideBPreviewUrl(null);
       }
     }
   }, [open, record.id]);
@@ -152,6 +204,41 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function handleApplyCenterLabel(blob: Blob, framing: { positionX: number; positionY: number; zoom: number }) {
+    const objectUrl = URL.createObjectURL(blob);
+    if (cropperSide === "b") {
+      setCenterLabelSideBBlob(blob);
+      setHasCenterLabelSideB(true);
+      setIsRemovingCenterLabelSideB(false);
+      setCenterLabelSideBPosX(framing.positionX);
+      setCenterLabelSideBPosY(framing.positionY);
+      setCenterLabelSideBZoom(framing.zoom);
+      setCenterLabelSideBPreviewUrl(objectUrl);
+    } else {
+      setCenterLabelBlob(blob);
+      setHasCenterLabel(true);
+      setIsRemovingCenterLabel(false);
+      setCenterLabelPosX(framing.positionX);
+      setCenterLabelPosY(framing.positionY);
+      setCenterLabelZoom(framing.zoom);
+      setCenterLabelPreviewUrl(objectUrl);
+    }
+  }
+
+  function handleRemoveCenterLabel(side: "a" | "b") {
+    if (side === "a") {
+      setCenterLabelBlob(null);
+      setHasCenterLabel(false);
+      setIsRemovingCenterLabel(true);
+      setCenterLabelPreviewUrl(null);
+    } else {
+      setCenterLabelSideBBlob(null);
+      setHasCenterLabelSideB(false);
+      setIsRemovingCenterLabelSideB(true);
+      setCenterLabelSideBPreviewUrl(null);
+    }
+  }
+
   async function handleSave() {
     setIsSaving(true);
     try {
@@ -159,6 +246,18 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
         await saveAlbumBackground(record.id, bgBlob);
       } else if (isRemovingBg) {
         await deleteAlbumBackground(record.id);
+      }
+
+      if (centerLabelBlob) {
+        await saveCenterLabel(record.id, centerLabelBlob, "a");
+      } else if (isRemovingCenterLabel) {
+        await deleteCenterLabel(record.id, "a");
+      }
+
+      if (centerLabelSideBBlob) {
+        await saveCenterLabel(record.id, centerLabelSideBBlob, "b");
+      } else if (isRemovingCenterLabelSideB) {
+        await deleteCenterLabel(record.id, "b");
       }
 
       const newCustomization: CollectionCustomization = {
@@ -175,6 +274,15 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
         equalizerColorMode: eqMode,
         equalizerCustomColor: eqMode === "custom" ? eqColor : null,
         vinylColor: vinylColor,
+        hasCenterLabel: hasCenterLabel,
+        centerLabelPositionX: centerLabelPosX,
+        centerLabelPositionY: centerLabelPosY,
+        centerLabelZoom: centerLabelZoom,
+        hasCenterLabelSideB: hasCenterLabelSideB,
+        centerLabelSideBPositionX: centerLabelSideBPosX,
+        centerLabelSideBPositionY: centerLabelSideBPosY,
+        centerLabelSideBZoom: centerLabelSideBZoom,
+        showRecordLabelText: showRecordLabelText,
       };
 
       updateCollectionCustomization(record.id, newCustomization);
@@ -587,7 +695,9 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
                     zIndex: 3,
                   }}
                 >
-                  {coverTrack?.imageUrl ? (
+                  {centerLabelPreviewUrl ? (
+                    <img src={centerLabelPreviewUrl} alt="Center Label" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : coverTrack?.imageUrl ? (
                     <img src={coverTrack.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   ) : (
                     <Disc3 size={14} color="#666" />
@@ -644,6 +754,233 @@ export function AdvancedAlbumDialog({ open, onOpenChange, record, onSaved }: Pro
                   )}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* 4. Vinyl Center Label Artwork Section */}
+          <div className="advanced-section" style={{ background: 'rgba(255,255,255,0.03)', padding: '18px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Disc3 size={18} style={{ color: '#00d26a' }} />
+                <h3 style={{ margin: 0, fontSize: '15px', color: '#f1eee7' }}>Vinyl Center Label Artwork</h3>
+              </div>
+            </div>
+            <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: '#888', lineHeight: '1.4' }}>
+              Upload and circular-crop custom center labels for the physical record. You can customize Side 1 (Side A) and optionally Side 2 (Side B) individually.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px' }}>
+              {/* Side 1 (Side A) Card */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1eee7' }}>Side 1 (Side A)</span>
+                  {hasCenterLabel && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveCenterLabel("a")}
+                      style={{ color: '#ff5555', height: '24px', fontSize: '11px', padding: '0 6px' }}
+                    >
+                      <Trash2 size={12} style={{ marginRight: '4px' }} />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      background: '#161618',
+                      border: '1px dashed rgba(255,255,255,0.25)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    {centerLabelPreviewUrl ? (
+                      <img
+                        src={centerLabelPreviewUrl}
+                        alt="Side 1 Label"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : coverTrack?.imageUrl ? (
+                      <img
+                        src={coverTrack.imageUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
+                      />
+                    ) : (
+                      <Disc3 size={24} color="#555" />
+                    )}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#0a0a0c',
+                        boxShadow: '0 0 0 1px rgba(255,255,255,0.4)',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <Button
+                      type="button"
+                      variant={hasCenterLabel ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => setCropperSide("a")}
+                      style={{ gap: '6px', fontSize: '12px', height: '30px' }}
+                    >
+                      <Crop size={13} />
+                      {hasCenterLabel ? "Re-crop Side 1" : "Upload & Crop"}
+                    </Button>
+                    <span style={{ fontSize: '11px', color: '#777' }}>
+                      {hasCenterLabel ? "Custom artwork active" : "Using jacket cover art"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Side 2 (Side B) Card */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#f1eee7' }}>Side 2 (Side B)</span>
+                    <span style={{ fontSize: '11px', color: '#888', marginLeft: '6px' }}>(Optional)</span>
+                  </div>
+                  {hasCenterLabelSideB && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemoveCenterLabel("b")}
+                      style={{ color: '#ff5555', height: '24px', fontSize: '11px', padding: '0 6px' }}
+                    >
+                      <Trash2 size={12} style={{ marginRight: '4px' }} />
+                      Remove
+                    </Button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
+                  <div
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      background: '#161618',
+                      border: '1px dashed rgba(255,255,255,0.25)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                    }}
+                  >
+                    {centerLabelSideBPreviewUrl ? (
+                      <img
+                        src={centerLabelSideBPreviewUrl}
+                        alt="Side 2 Label"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : centerLabelPreviewUrl ? (
+                      <img
+                        src={centerLabelPreviewUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.6 }}
+                      />
+                    ) : coverTrack?.imageUrl ? (
+                      <img
+                        src={coverTrack.imageUrl}
+                        alt=""
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.4 }}
+                      />
+                    ) : (
+                      <Disc3 size={24} color="#555" />
+                    )}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        width: '7px',
+                        height: '7px',
+                        borderRadius: '50%',
+                        background: '#0a0a0c',
+                        boxShadow: '0 0 0 1px rgba(255,255,255,0.4)',
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <Button
+                      type="button"
+                      variant={hasCenterLabelSideB ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => setCropperSide("b")}
+                      style={{ gap: '6px', fontSize: '12px', height: '30px' }}
+                    >
+                      <Crop size={13} />
+                      {hasCenterLabelSideB ? "Re-crop Side 2" : "Upload & Crop"}
+                    </Button>
+                    <span style={{ fontSize: '11px', color: '#777' }}>
+                      {hasCenterLabelSideB
+                        ? "Custom artwork active"
+                        : hasCenterLabel
+                        ? "Inherits Side 1 artwork"
+                        : "Inherits jacket cover art"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <CenterLabelCropperDialog
+              open={cropperSide !== null}
+              onOpenChange={(isOpen) => {
+                if (!isOpen) setCropperSide(null);
+              }}
+              albumName={record.name}
+              sideTitle={cropperSide === "b" ? "Side 2 (Side B)" : "Side 1 (Side A)"}
+              vinylColor={vinylColor}
+              initialImageUrl={
+                cropperSide === "b"
+                  ? (centerLabelSideBPreviewUrl || centerLabelPreviewUrl || coverTrack?.imageUrl || null)
+                  : (centerLabelPreviewUrl || coverTrack?.imageUrl || null)
+              }
+              initialPositionX={cropperSide === "b" ? centerLabelSideBPosX : centerLabelPosX}
+              initialPositionY={cropperSide === "b" ? centerLabelSideBPosY : centerLabelPosY}
+              initialZoom={cropperSide === "b" ? centerLabelSideBZoom : centerLabelZoom}
+              onApply={handleApplyCenterLabel}
+            />
+
+            {/* Record Center Label Tracklist Text Toggle */}
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={showRecordLabelText}
+                  onChange={(e) => setShowRecordLabelText(e.target.checked)}
+                  style={{ width: '16px', height: '16px', marginTop: '2px', accentColor: 'var(--primary, #00d26a)', cursor: 'pointer' }}
+                />
+                <div>
+                  <div style={{ fontSize: '13px', color: '#f1eee7', fontWeight: 500 }}>
+                    Generate tracklist text overlay on record center
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#888', marginTop: '2px', lineHeight: '1.4' }}>
+                    Displays artificial Side A / Side B track names across the center of the vinyl record in 3D inspection views. Uncheck to keep the center label completely clean.
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
 

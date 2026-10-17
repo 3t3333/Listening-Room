@@ -14,6 +14,7 @@ import { InlineRecordViewer } from "../components/InlineRecordViewer";
 import { useActiveCustomization, findMatchingCollection } from "../hooks/useActiveCustomization";
 import { getVinylColorStyle } from "../lib/vinylColors";
 import { getCollections, type Collection } from "../lib/collections";
+import { getCenterLabelUrl } from "../lib/mp3Storage";
 import { useVerticalOrientation } from "../hooks/useVerticalOrientation";
 
 export function DjSetupTheme({ playback, background, albumQueue, onToggle, onPrevious, onNext, onPlayTrack, onQueueTrack, onQueueAlbum }: ThemeProps) {
@@ -331,6 +332,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
   }
 
   const [collections, setCollections] = useState<Collection[]>(() => getCollections());
+  const [centerLabels, setCenterLabels] = useState<Record<string, string>>({});
 
   useEffect(() => {
     function handleCollectionsChanged() {
@@ -339,6 +341,52 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
     window.addEventListener("collections:changed", handleCollectionsChanged);
     return () => window.removeEventListener("collections:changed", handleCollectionsChanged);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const collectionsWithLabel = collections.filter(
+      (c) => c.customization?.hasCenterLabel || c.customization?.hasCenterLabelSideB
+    );
+    if (collectionsWithLabel.length === 0) {
+      setCenterLabels({});
+      return;
+    }
+
+    Promise.all(
+      collectionsWithLabel.flatMap((c) => [
+        (async () => {
+          if (c.customization?.hasCenterLabel) {
+            const url = await getCenterLabelUrl(c.id, "a");
+            return { key: `${c.id}:a`, legacyKey: c.id, url };
+          }
+          return null;
+        })(),
+        (async () => {
+          if (c.customization?.hasCenterLabelSideB) {
+            const url = await getCenterLabelUrl(c.id, "b");
+            return { key: `${c.id}:b`, legacyKey: null, url };
+          }
+          return null;
+        })(),
+      ])
+    ).then((results) => {
+      if (cancelled) return;
+      const map: Record<string, string> = {};
+      for (const r of results) {
+        if (r && r.url) {
+          map[r.key] = r.url;
+          if (r.legacyKey && !map[r.legacyKey]) {
+            map[r.legacyKey] = r.url;
+          }
+        }
+      }
+      setCenterLabels(map);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [collections]);
 
   useEffect(() => {
     function resetParentScroll() {
@@ -359,16 +407,43 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
     return () => clearTimeout(timer);
   }, [inspectingCollection]);
 
+  function isTrackOnSideB(track: Track | null, col: Collection | null): boolean {
+    if (!track || !col?.tracks || col.tracks.length <= 1) return false;
+    const tracks = col.tracks;
+    const midpoint = Math.ceil(tracks.length / 2);
+    const sideBTracks = tracks.slice(midpoint);
+    return sideBTracks.some(t => 
+      (t.audioId && track.audioId && t.audioId === track.audioId) ||
+      (t.uri && track.uri && t.uri === track.uri) ||
+      (t.name && track.name && t.artist && track.artist &&
+       t.name.trim().toLowerCase() === track.name.trim().toLowerCase() &&
+       t.artist.trim().toLowerCase() === track.artist.trim().toLowerCase())
+    );
+  }
+
+  function getTrackCenterLabelUrl(track: Track | null, col: Collection | null): string | null {
+    if (!col) return null;
+    const onSideB = isTrackOnSideB(track, col);
+    if (onSideB) {
+      return centerLabels[`${col.id}:b`] || centerLabels[`${col.id}:a`] || centerLabels[col.id] || null;
+    }
+    return centerLabels[`${col.id}:a`] || centerLabels[col.id] || centerLabels[`${col.id}:b`] || null;
+  }
+
   const leftTrack = animatedSide === "left" && animatedTrack ? animatedTrack : deckTracks.left;
   const rightTrack = animatedSide === "right" && animatedTrack ? animatedTrack : deckTracks.right;
 
-  const leftVinylColor = (animatedSide === "left" && animatedRecord && isSameTrack(leftTrack, animatedTrack))
-    ? (animatedRecord.customization?.vinylColor || null)
-    : (leftTrack ? findMatchingCollection(leftTrack, collections)?.customization?.vinylColor || null : null);
+  const leftCol = (animatedSide === "left" && animatedRecord && isSameTrack(leftTrack, animatedTrack))
+    ? animatedRecord
+    : (leftTrack ? findMatchingCollection(leftTrack, collections) : null);
+  const leftVinylColor = leftCol?.customization?.vinylColor || null;
+  const leftCenterLabelUrl = getTrackCenterLabelUrl(leftTrack, leftCol);
 
-  const rightVinylColor = (animatedSide === "right" && animatedRecord && isSameTrack(rightTrack, animatedTrack))
-    ? (animatedRecord.customization?.vinylColor || null)
-    : (rightTrack ? findMatchingCollection(rightTrack, collections)?.customization?.vinylColor || null : null);
+  const rightCol = (animatedSide === "right" && animatedRecord && isSameTrack(rightTrack, animatedTrack))
+    ? animatedRecord
+    : (rightTrack ? findMatchingCollection(rightTrack, collections) : null);
+  const rightVinylColor = rightCol?.customization?.vinylColor || null;
+  const rightCenterLabelUrl = getTrackCenterLabelUrl(rightTrack, rightCol);
 
   const verticalOrientation = useVerticalOrientation(settings);
   const isVerticalRig = verticalOrientation.isVertical && !activeLayoutClass;
@@ -425,6 +500,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         onCycleTheme={cycleTurntableTheme}
         onToggleDark={cycleTurntableTheme}
         vinylColor={leftVinylColor}
+        centerLabelUrl={leftCenterLabelUrl}
       />
     </div>
   );
@@ -442,6 +518,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
         onCycleTheme={cycleTurntableTheme}
         onToggleDark={cycleTurntableTheme}
         vinylColor={rightVinylColor}
+        centerLabelUrl={rightCenterLabelUrl}
       />
     </div>
   );
@@ -530,6 +607,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
                   onCycleTheme={cycleTurntableTheme}
                   onToggleDark={cycleTurntableTheme}
                   vinylColor={leftVinylColor}
+                  centerLabelUrl={leftCenterLabelUrl}
                 />
               )}
 
@@ -551,6 +629,7 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
                   onCycleTheme={cycleTurntableTheme}
                   onToggleDark={cycleTurntableTheme}
                   vinylColor={rightVinylColor}
+                  centerLabelUrl={rightCenterLabelUrl}
                 />
               )}
             </div>
@@ -574,39 +653,43 @@ function isSameAlbum(a: Track | null | undefined, b: Track | null | undefined): 
             onAnimateRecord={handleAnimateFromInline}
           />
         )}
-      {flyingRecord && createPortal(
-        <div 
-          className="flying-record-anim"
-          style={{
-            position: 'absolute',
-            top: 0, left: 0,
-            width: `${flyingRecord.sourceRect.width}px`,
-            height: `${flyingRecord.sourceRect.height}px`,
-            "--source-x": `${flyingRecord.sourceRect.left}px`,
-            "--source-y": `${flyingRecord.sourceRect.top}px`,
-            "--target-x": `${flyingRecord.targetRect.left + (flyingRecord.targetRect.width - flyingRecord.sourceRect.width) / 2}px`,
-            "--target-y": `${flyingRecord.targetRect.top + (flyingRecord.targetRect.height - flyingRecord.sourceRect.height) / 2}px`,
-            "--target-scale": `${flyingRecord.targetRect.width / flyingRecord.sourceRect.width}`,
-            animation: 'fly-to-turntable 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
-            zIndex: 9999,
-            pointerEvents: 'none'
-          } as CSSProperties}
-        >
+      {flyingRecord && (() => {
+        const flyingCenterLabel = getTrackCenterLabelUrl(flyingRecord.track, flyingRecord.record);
+        const flyingLabelArt = flyingCenterLabel || flyingRecord.track.imageUrl;
+        return createPortal(
           <div 
-            className="record-vinyl-disc" 
-            style={{ 
-              transform: 'rotateX(55deg)', 
-              animation: 'fly-spin 1.5s linear forwards',
-              ...getVinylColorStyle(flyingRecord.record.customization?.vinylColor) 
-            }}
+            className="flying-record-anim"
+            style={{
+              position: 'absolute',
+              top: 0, left: 0,
+              width: `${flyingRecord.sourceRect.width}px`,
+              height: `${flyingRecord.sourceRect.height}px`,
+              "--source-x": `${flyingRecord.sourceRect.left}px`,
+              "--source-y": `${flyingRecord.sourceRect.top}px`,
+              "--target-x": `${flyingRecord.targetRect.left + (flyingRecord.targetRect.width - flyingRecord.sourceRect.width) / 2}px`,
+              "--target-y": `${flyingRecord.targetRect.top + (flyingRecord.targetRect.height - flyingRecord.sourceRect.height) / 2}px`,
+              "--target-scale": `${flyingRecord.targetRect.width / flyingRecord.sourceRect.width}`,
+              animation: 'fly-to-turntable 1.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              zIndex: 9999,
+              pointerEvents: 'none'
+            } as CSSProperties}
           >
-            <div className="record-vinyl-grooves" />
-            <div className="record-vinyl-label" style={flyingRecord.track.imageUrl ? { backgroundImage: `url(${flyingRecord.track.imageUrl})` } : {}}>
+            <div 
+              className="record-vinyl-disc" 
+              style={{ 
+                transform: 'rotateX(55deg)', 
+                animation: 'fly-spin 1.5s linear forwards',
+                ...getVinylColorStyle(flyingRecord.record.customization?.vinylColor) 
+              }}
+            >
+              <div className="record-vinyl-grooves" />
+              <div className="record-vinyl-label" style={flyingLabelArt ? { backgroundImage: `url(${flyingLabelArt})` } : {}}>
+              </div>
             </div>
-          </div>
-        </div>,
-        pageContainerRef.current!
-      )}
+          </div>,
+          pageContainerRef.current!
+        );
+      })()}
       </div>
     </div>
   );

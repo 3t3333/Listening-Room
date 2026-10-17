@@ -9,10 +9,11 @@ import { useArtworkPalette } from "../hooks/useArtworkColor";
 import { useActiveCustomization } from "../hooks/useActiveCustomization";
 import type { ThemeProps } from "./types";
 
-export function MidnightMixTheme({ playback, background, onToggle, onPrevious, onNext, customVisualizerRgb, vinylColor: propVinylColor }: ThemeProps) {
+export function MidnightMixTheme({ playback, background, onToggle, onPrevious, onNext, customVisualizerRgb, vinylColor: propVinylColor, centerLabelUrl: propCenterLabelUrl }: ThemeProps) {
   const track = playback.current;
   const customization = useActiveCustomization(track, background);
   const vinylColor = customization.vinylColor ?? propVinylColor ?? null;
+  const centerLabelUrl = customization.centerLabelUrl ?? propCenterLabelUrl ?? null;
   const artworkPalette = useArtworkPalette(track?.imageUrl);
   const palette = background.adaptColors && (customization.effectiveImageUrl || background.imageUrl) ? background.palette : artworkPalette;
   const { primary: [red, green, blue], accent: [accentRed, accentGreen, accentBlue] } = palette;
@@ -36,7 +37,7 @@ export function MidnightMixTheme({ playback, background, onToggle, onPrevious, o
             <span className="midnight-sleeve-shine" />
           </div>
         </TrackDetailsDialog>
-        <VinylRecord track={track} isPlaying={playback.isPlaying} vinylColor={vinylColor} />
+        <VinylRecord track={track} isPlaying={playback.isPlaying} vinylColor={vinylColor} centerLabelUrl={centerLabelUrl} />
       </div>
 
       <div className="midnight-meta">

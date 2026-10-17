@@ -619,8 +619,32 @@ button { font: inherit; }
   transition: background 1s ease;
   pointer-events: none;
 }
-.visualizer-stand-floor { position: absolute; z-index: 1; left: -10%; right: -10%; bottom: -16%; height: 48%; background: radial-gradient(ellipse at 50% 0, rgba(var(--ambient-rgb), .16), #020302 64%); transform: perspective(460px) rotateX(63deg); transform-origin: top; pointer-events: none; }
-.visualizer-stand-floor::after { content: ""; position: absolute; left: 17%; right: 17%; top: 2%; height: 24%; border-radius: 50%; background: #000; filter: blur(26px); opacity: .88; }
+.visualizer-stand-floor {
+  position: absolute;
+  z-index: 1;
+  left: -15%;
+  right: -15%;
+  bottom: -14%;
+  height: 52%;
+  background: radial-gradient(ellipse 65% 45% at 50% 15%, rgba(var(--ambient-rgb), 0.22) 0%, rgba(0, 0, 0, 0.7) 40%, transparent 75%);
+  transform: perspective(460px) rotateX(63deg);
+  transform-origin: top center;
+  pointer-events: none;
+  mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, black 20%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, black 20%, transparent 75%);
+}
+.visualizer-stand-floor::after {
+  content: "";
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 0%;
+  height: 32%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.6) 45%, transparent 75%);
+  filter: blur(34px);
+  opacity: 0.88;
+}
 
 .stand-container {
   width: min(96vw, 1200px);
@@ -638,10 +662,10 @@ button { font: inherit; }
 .stand-sleeve {
   position: relative;
   top: max(-50px, -5cqh);
-  width: 60%;
+  width: min(44%, clamp(240px, 38cqh, 420px));
   aspect-ratio: 1;
   z-index: 1;
-  padding: clamp(3px, .45cqw, 7px);
+  padding: clamp(3px, .45cqw, 6px);
   transform: perspective(1200px) rotateX(5deg) translateZ(0);
   transform-origin: bottom center;
   box-shadow: 0 2.8cqh 4.8cqh #000c, 0 .5cqh 1.2cqh #000b, inset 0 0 0 1px #fff2;
@@ -652,7 +676,7 @@ button { font: inherit; }
   align-items: center;
   justify-content: center;
   transition: transform .35s cubic-bezier(.16,.8,.2,1), box-shadow .35s ease;
-  margin-bottom: -10%;
+  margin-bottom: -7.5%;
   cursor: pointer;
 }
 .stand-sleeve::after { content: ""; position: absolute; inset: 0; pointer-events: none; border: 1px solid #fff2; background: linear-gradient(112deg, #fff2, transparent 18% 65%, #fff1 76%, transparent); box-shadow: inset 0 0 2cqw #0003; }
@@ -763,7 +787,7 @@ button { font: inherit; }
 
 @media (max-height: 520px) {
   .stand-container { width: min(94cqw, 122cqh, 1200px); transform: translateY(-.5cqh); }
-  .stand-sleeve { width: 56.25%; margin-bottom: -10%; }
+  .stand-sleeve { width: min(45%, 300px); margin-bottom: -7.5%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3011,7 +3035,7 @@ button { font: inherit; }
 /* Shelf Sorting Toolbar & Glassy Button */
 .spine-shelf-toolbar {
   position: relative;
-  z-index: 10;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3207,16 +3231,11 @@ button { font: inherit; }
   flex-wrap: nowrap;
   border-radius: 4px;
   position: relative;
-  z-index: 25;
+  z-index: 10;
   padding: 0 var(--shelf-bar-padding-right) 0 var(--shelf-bar-padding-left);
   margin: 0 auto;
   box-sizing: border-box;
   transition: background 0.35s ease, border 0.35s ease, box-shadow 0.35s ease, backdrop-filter 0.35s ease;
-}
-
-.spine-shelf-bar:hover,
-.spine-shelf-bar:has(.spine-record-wrapper:hover) {
-  z-index: 90;
 }
 
 .dj-page-container.is-vertical-rig .spine-shelf-bar {
@@ -3293,10 +3312,6 @@ button { font: inherit; }
   cursor: pointer;
   perspective: 1500px;
   z-index: 5;
-}
-
-.spine-record-wrapper:hover {
-  z-index: 100;
 }
 
 .spine-record-card {
@@ -3401,7 +3416,7 @@ button { font: inherit; }
   pointer-events: none;
   transition: opacity 0.2s, transform 0.2s;
   box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-  z-index: 999;
+  z-index: 50;
 }
 
 .spine-shelf-container.dj-theme-glass-clear .spine-record-tooltip {
@@ -3410,8 +3425,7 @@ button { font: inherit; }
   box-shadow: 0 14px 35px rgba(0, 0, 0, 0.6), inset 0 1px 1px rgba(255, 255, 255, 0.2);
 }
 
-.spine-record-wrapper:hover .spine-record-tooltip,
-.spine-record-tooltip.is-visible {
+.spine-record-wrapper:hover .spine-record-tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0) scale(1);
 }
@@ -4643,3 +4657,41 @@ button { font: inherit; }
 .tracklist-save-btn-primary:hover {
   filter: brightness(1.1);
 }
+
+/* ==========================================================================
+   Windows Desktop Background (Live Wallpaper) Mode
+   ========================================================================== */
+
+body.desktop-mode-active {
+  user-select: none;
+  overflow: hidden !important;
+  background-color: transparent !important;
+}
+
+body.desktop-mode-active .app-shell {
+  border-radius: 0 !important;
+}
+
+/* In Behind-Icons Wallpaper mode, mouse events pass through to desktop icons */
+body.desktop-mode-wallpaper {
+  pointer-events: none;
+}
+
+body.desktop-mode-wallpaper .app-shell {
+  pointer-events: none;
+}
+
+/* Allow interaction on modal dialogs even if wallpaper mode is active */
+body.desktop-mode-wallpaper [role="dialog"],
+body.desktop-mode-wallpaper .dialog-content,
+body.desktop-mode-wallpaper .settings-dialog {
+  pointer-events: auto !important;
+}
+
+/* Eco Mode Throttling: When background is occluded or full-screen app is running */
+body.desktop-mode-throttled .record-disc,
+body.desktop-mode-throttled .vinyl-spinning,
+body.desktop-mode-throttled .dj-turntable-platter {
+  animation-play-state: paused !important;
+}
+

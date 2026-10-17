@@ -11,6 +11,7 @@ import { useCustomBackground } from "./hooks/useCustomBackground";
 import { useActiveCustomization } from "./hooks/useActiveCustomization";
 import { useTheme } from "./hooks/useTheme";
 import { useDjSettings } from "./hooks/useDjSettings";
+import { useDesktopWallpaper } from "./hooks/useDesktopWallpaper";
 import { defaultCollectionId, getCollections, recordRecentlyPlayed, initMp3Artwork, prewarmShelfArtwork } from "./lib/collections";
 import { player, type PlaybackState, type Track } from "./lib/player";
 import { mapTrackArtwork } from "./lib/customArtwork";
@@ -55,6 +56,7 @@ export function App() {
   const [zoomNotice, setZoomNotice] = useState<number | null>(null);
   const { theme, setTheme } = useTheme();
   const [djSettings] = useDjSettings();
+  const desktopWallpaper = useDesktopWallpaper();
   const [albumQueue, setAlbumQueue] = useState<Track[][]>([]);
   const customBackground = useCustomBackground();
   const [mp3State, setMp3State] = useState<Mp3PlaybackState>(() => mp3Player.getState());
@@ -491,6 +493,7 @@ export function App() {
     albumQueue,
     customVisualizerRgb: activeCustomization.customVisualizerRgb,
     vinylColor: activeCustomization.vinylColor,
+    centerLabelUrl: activeCustomization.centerLabelUrl,
     background: {
       imageUrl: activeCustomization.effectiveImageUrl,
       opacity: activeCustomization.effectiveOpacity,
@@ -567,6 +570,47 @@ export function App() {
     onQueueTrack: (track) => track.uri ? player.queueUri(track.uri) : Promise.reject(new Error("No URI")),
     onQueueAlbum: handleQueueAlbum
   };
+
+  useEffect(() => {
+    document.body.classList.toggle("desktop-mode-active", desktopWallpaper.enabled);
+    document.body.classList.toggle("desktop-mode-throttled", desktopWallpaper.isThrottled);
+    if (desktopWallpaper.enabled) {
+      document.body.classList.add(`desktop-mode-${desktopWallpaper.mode}`);
+    } else {
+      document.body.classList.remove("desktop-mode-interactive", "desktop-mode-wallpaper");
+    }
+  }, [desktopWallpaper.enabled, desktopWallpaper.mode, desktopWallpaper.isThrottled]);
+
+  useEffect(() => {
+    let unlistenPlayPause: (() => void) | null = null;
+    let unlistenNext: (() => void) | null = null;
+    let unlistenPrev: (() => void) | null = null;
+
+    listen("tray-play-pause", () => {
+      themeProps.onToggle?.();
+    }).then((fn) => {
+      unlistenPlayPause = fn;
+    });
+
+    listen("tray-next", () => {
+      themeProps.onNext?.();
+    }).then((fn) => {
+      unlistenNext = fn;
+    });
+
+    listen("tray-prev", () => {
+      themeProps.onPrevious?.();
+    }).then((fn) => {
+      unlistenPrev = fn;
+    });
+
+    return () => {
+      unlistenPlayPause?.();
+      unlistenNext?.();
+      unlistenPrev?.();
+    };
+  }, [themeProps.onToggle, themeProps.onNext, themeProps.onPrevious]);
+
   useEffect(() => {
     const style = djSettings.vinylDiscStyle || "realistic";
     document.documentElement.dataset.vinylDiscStyle = style;
@@ -582,7 +626,7 @@ export function App() {
   } as CSSProperties;
 
   return (
-    <main className={`app-shell theme-${theme} vinyl-style-${djSettings.vinylDiscStyle || "realistic"} ${showChrome ? "" : "chrome-hidden"}`} style={shellStyle}>
+    <main className={`app-shell theme-${theme} vinyl-style-${djSettings.vinylDiscStyle || "realistic"} ${showChrome ? "" : "chrome-hidden"} ${desktopWallpaper.enabled ? "is-desktop-wallpaper" : ""}`} style={shellStyle}>
       <CustomBackground 
         imageUrl={activeCustomization.effectiveImageUrl} 
         opacity={activeCustomization.effectiveOpacity} 

@@ -1,9 +1,11 @@
 mod audio;
+pub mod desktop_wallpaper;
 pub mod diagnostics;
 #[cfg(feature = "legacy-web-api")]
 mod legacy_web_api;
 mod models;
 mod player;
+pub mod tray;
 
 use models::{PlaybackState, Track, AlbumImport};
 use player::{AudioOutputState, PlayerService};
@@ -86,9 +88,46 @@ async fn restart_daemon(service: State<'_, PlayerService>) -> Result<(), String>
     service.restart().await
 }
 
+#[tauri::command]
+async fn download_image(url: String) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "ListeningRoom/0.2.3")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch image: {e}"))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Server returned HTTP {}", response.status()));
+    }
+
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("image/jpeg")
+        .to_string();
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read image bytes: {e}"))?;
+
+    use base64::engine::general_purpose::STANDARD;
+    use base64::Engine;
+    let b64 = STANDARD.encode(&bytes);
+
+    Ok(format!("data:{};base64,{}", content_type, b64))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
@@ -102,6 +141,7 @@ pub fn run() {
                 let _ = window.set_focus();
             }
         }))
+        .plugin(tauri_plugin_wallpaper::init())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::Destroyed = event
                 && window.label() == "main"
@@ -125,6 +165,10 @@ pub fn run() {
                 }
             });
             app.manage(service);
+            app.manage(desktop_wallpaper::DesktopWallpaperManager::new());
+            if let Err(e) = tray::setup_tray(app.handle()) {
+                log::warn!("failed to setup system tray: {e}");
+            }
             audio::start(app.handle().clone());
             diagnostics::check_and_upload_pending_crash_reports();
             Ok(())
@@ -141,6 +185,7 @@ pub fn run() {
             play_collection,
             queue_uri,
             restart_daemon,
+            download_image,
             set_volume,
             get_audio_outputs,
             set_audio_output,
@@ -148,7 +193,12 @@ pub fn run() {
             diagnostics::test_diagnostic_webhook,
             diagnostics::get_system_diagnostics,
             diagnostics::save_diagnostics_url,
-            diagnostics::trigger_test_crash
+            diagnostics::trigger_test_crash,
+            desktop_wallpaper::get_available_monitors,
+            desktop_wallpaper::get_desktop_mode_status,
+            desktop_wallpaper::set_desktop_mode,
+            desktop_wallpaper::reposition_desktop_mode,
+            desktop_wallpaper::pin_desktop_bottom
         ])
         .run(tauri::generate_context!())
         .expect("failed to run Listening Room");

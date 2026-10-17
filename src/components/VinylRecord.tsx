@@ -6,16 +6,19 @@ export function VinylRecord({
   track,
   isPlaying,
   vinylColor,
+  centerLabelUrl,
 }: {
   track: Track | null;
   isPlaying: boolean;
   vinylColor?: string | null;
+  centerLabelUrl?: string | null;
 }) {
+  const displayArt = centerLabelUrl || track?.imageUrl;
   return (
     <div className={`front-vinyl ${isPlaying ? "is-playing" : ""}`} style={getVinylColorStyle(vinylColor)}>
       <div className="front-vinyl-grooves" />
       <div className="front-vinyl-label">
-        {track?.imageUrl ? <img src={track.imageUrl} alt="" /> : <Disc3 />}
+        {displayArt ? <img src={displayArt} alt="" /> : <Disc3 />}
       </div>
       <i />
     </div>

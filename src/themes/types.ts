@@ -27,4 +27,5 @@ export interface ThemeProps {
   onQueueAlbum?: (tracks: any[]) => void;
   customVisualizerRgb?: string | null;
   vinylColor?: string | null;
+  centerLabelUrl?: string | null;
 }

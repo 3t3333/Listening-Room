@@ -6,6 +6,7 @@ import { setCustomArtwork } from "../lib/customArtwork";
 import { Button } from "./ui/button";
 import { mp3Player } from "../lib/mp3Player";
 import { getVinylColorStyle } from "../lib/vinylColors";
+import { getCenterLabelUrl } from "../lib/mp3Storage";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { AdvancedAlbumDialog } from "./AdvancedAlbumDialog";
 import { Mp3TracklistEditorDialog } from "./Mp3TracklistEditorDialog";
@@ -21,6 +22,8 @@ interface Props {
 export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, onQueueAlbum }: Props) {
   const [djSettings] = useDjSettings();
   const [currentRecord, setCurrentRecord] = useState<Collection>(record);
+  const [centerLabelUrl, setCenterLabelUrl] = useState<string | null>(null);
+  const [centerLabelSideBUrl, setCenterLabelSideBUrl] = useState<string | null>(null);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [tracklistEditorOpen, setTracklistEditorOpen] = useState(false);
   const [side, setSide] = useState<"info" | "side-a" | "side-b">("info");
@@ -29,6 +32,29 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
   useEffect(() => {
     setCurrentRecord(record);
   }, [record]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (currentRecord.id && currentRecord.customization?.hasCenterLabel) {
+      getCenterLabelUrl(currentRecord.id, "a").then((url) => {
+        if (!cancelled) setCenterLabelUrl(url);
+      });
+    } else {
+      setCenterLabelUrl(null);
+    }
+
+    if (currentRecord.id && currentRecord.customization?.hasCenterLabelSideB) {
+      getCenterLabelUrl(currentRecord.id, "b").then((url) => {
+        if (!cancelled) setCenterLabelSideBUrl(url);
+      });
+    } else {
+      setCenterLabelSideBUrl(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentRecord.id, currentRecord.customization?.hasCenterLabel, currentRecord.customization?.hasCenterLabelSideB]);
 
   useEffect(() => {
     if (side !== "info") setHasOpened(true);
@@ -229,21 +255,25 @@ export function RecordPresentation({ record, onBack, onPlayTrack, onQueueTrack, 
                  <div className="record-vinyl-grooves record-vinyl-grooves-b"></div>
                  <div 
                    className="record-vinyl-label record-vinyl-label-a" 
-                   style={coverTrack?.imageUrl ? { backgroundImage: `url(${coverTrack.imageUrl})` } : {}}
+                   style={(centerLabelUrl || coverTrack?.imageUrl) ? { backgroundImage: `url(${centerLabelUrl || coverTrack!.imageUrl})` } : {}}
                  >
-                    <div className="record-vinyl-label-text">
-                      <small>Side A</small>
-                      <ul>{sideA.slice(0, 5).map(t => <li key={t.uri}>{t.name}</li>)}</ul>
-                    </div>
+                    {currentRecord.customization?.showRecordLabelText !== false && (
+                      <div className="record-vinyl-label-text">
+                        <small>Side A</small>
+                        <ul>{sideA.slice(0, 5).map(t => <li key={t.uri}>{t.name}</li>)}</ul>
+                      </div>
+                    )}
                  </div>
                  <div 
                    className="record-vinyl-label record-vinyl-label-b" 
-                   style={coverTrack?.imageUrl ? { backgroundImage: `url(${coverTrack.imageUrl})` } : {}}
+                   style={(centerLabelSideBUrl || centerLabelUrl || coverTrack?.imageUrl) ? { backgroundImage: `url(${centerLabelSideBUrl || centerLabelUrl || coverTrack!.imageUrl})` } : {}}
                  >
-                    <div className="record-vinyl-label-text">
-                      <small>Side B</small>
-                      <ul>{sideB.slice(0, 5).map(t => <li key={t.uri}>{t.name}</li>)}</ul>
-                    </div>
+                    {currentRecord.customization?.showRecordLabelText !== false && (
+                      <div className="record-vinyl-label-text">
+                        <small>Side B</small>
+                        <ul>{sideB.slice(0, 5).map(t => <li key={t.uri}>{t.name}</li>)}</ul>
+                      </div>
+                    )}
                  </div>
                </div>
              </div>

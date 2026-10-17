@@ -5,9 +5,10 @@ import { TrackDetailsDialog } from "./TrackDetailsDialog";
 interface Props {
   track: Track | null;
   isPlaying: boolean;
+  centerLabelUrl?: string | null;
 }
 
-export function Turntable({ track, isPlaying }: Props) {
+export function Turntable({ track, isPlaying, centerLabelUrl }: Props) {
   return (
     <div className="scene" aria-label="Turntable scene">
       <div className="jacket-stand">
@@ -29,7 +30,9 @@ export function Turntable({ track, isPlaying }: Props) {
           <div className={`platter ${isPlaying ? "is-playing" : ""}`}>
             <div className="record-grooves" />
             <div className="record-label">
-              {track?.imageUrl && <img src={track.imageUrl} alt="" />}
+              {(centerLabelUrl || track?.imageUrl) && (
+                <img src={centerLabelUrl || track!.imageUrl!} alt="" />
+              )}
             </div>
             <span className="spindle" />
           </div>

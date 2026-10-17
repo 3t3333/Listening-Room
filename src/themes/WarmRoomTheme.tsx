@@ -5,7 +5,7 @@ import { Turntable } from "../components/Turntable";
 import { useArtworkColor } from "../hooks/useArtworkColor";
 import type { ThemeProps } from "./types";
 
-export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNext }: ThemeProps) {
+export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNext, centerLabelUrl }: ThemeProps) {
   const track = playback.current;
   const artworkColor = useArtworkColor(track?.imageUrl);
   const [red, green, blue] = background.adaptColors && background.imageUrl ? background.palette.primary : artworkColor;
@@ -23,7 +23,7 @@ export function WarmRoomTheme({ playback, background, onToggle, onPrevious, onNe
         <p>{track?.artist ?? (playback.connected ? "Choose a song in Spotify and cast to Listening Room." : "Connect Spotify and put on a record.")}</p>
       </div>
 
-      <Turntable track={track} isPlaying={playback.isPlaying} />
+      <Turntable track={track} isPlaying={playback.isPlaying} centerLabelUrl={centerLabelUrl} />
 
       <aside className="warm-controls-panel">
         <div className="warm-track-copy">

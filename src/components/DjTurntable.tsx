@@ -13,6 +13,7 @@ export function DjTurntable({
   onCycleTheme,
   onToggleDark,
   vinylColor,
+  centerLabelUrl,
   tonearmStyle = "technics-classic",
 }: {
   track: Track | null;
@@ -24,6 +25,7 @@ export function DjTurntable({
   onCycleTheme?: () => void;
   onToggleDark?: () => void;
   vinylColor?: string | null;
+  centerLabelUrl?: string | null;
   tonearmStyle?: TonearmStyle;
 }) {
   const effectiveTheme: DjTurntableTheme = theme || (isDark ? "dark" : "light");
@@ -48,8 +50,8 @@ export function DjTurntable({
             <div className={`vinyl-record ${isAppPlaying ? "spinning" : ""}`} style={getVinylColorStyle(vinylColor)}>
               <div className="vinyl-grooves" />
               <div className="vinyl-label">
-                {track.imageUrl ? (
-                  <img src={track.imageUrl} alt="Record Label" draggable={false} />
+                {(centerLabelUrl || track.imageUrl) ? (
+                  <img src={(centerLabelUrl || track.imageUrl) ?? undefined} alt="Record Label" draggable={false} />
                 ) : (
                   <div className="vinyl-label-placeholder"><Disc3 size={32} strokeWidth={1} /></div>
                 )}

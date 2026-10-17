@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Track } from "../lib/player";
 import { getCollections, defaultCollectionId, recentCollectionId, type Collection, type CollectionCustomization } from "../lib/collections";
-import { getAlbumBackgroundUrl } from "../lib/mp3Storage";
+import { getAlbumBackgroundUrl, getCenterLabelUrl } from "../lib/mp3Storage";
 import { isVideoMedia } from "../lib/liveWallpaper";
 
 export interface ActiveCustomization {
@@ -17,6 +17,9 @@ export interface ActiveCustomization {
   effectiveMediaType?: "image" | "video";
   customVisualizerRgb: string | null;
   vinylColor: string | null;
+  centerLabelUrl: string | null;
+  centerLabelSideAUrl: string | null;
+  centerLabelSideBUrl: string | null;
 }
 
 function hexToRgbString(hex: string): string | null {
@@ -94,6 +97,8 @@ export function useActiveCustomization(
 ): ActiveCustomization {
   const [collections, setCollections] = useState<Collection[]>(() => getCollections());
   const [albumBgUrl, setAlbumBgUrl] = useState<string | null>(null);
+  const [centerLabelSideAUrl, setCenterLabelSideAUrl] = useState<string | null>(null);
+  const [centerLabelSideBUrl, setCenterLabelSideBUrl] = useState<string | null>(null);
 
   useEffect(() => {
     function handleCollectionsChanged() {
@@ -123,6 +128,40 @@ export function useActiveCustomization(
     };
   }, [activeCollection?.id, customization?.hasCustomBackground]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (activeCollection?.id && customization?.hasCenterLabel) {
+      getCenterLabelUrl(activeCollection.id, "a").then((url) => {
+        if (!cancelled) {
+          setCenterLabelSideAUrl((prev) => (prev === url ? prev : url));
+        }
+      });
+    } else {
+      setCenterLabelSideAUrl((prev) => (prev === null ? prev : null));
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCollection?.id, customization?.hasCenterLabel]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (activeCollection?.id && customization?.hasCenterLabelSideB) {
+      getCenterLabelUrl(activeCollection.id, "b").then((url) => {
+        if (!cancelled) {
+          setCenterLabelSideBUrl((prev) => (prev === url ? prev : url));
+        }
+      });
+    } else {
+      setCenterLabelSideBUrl((prev) => (prev === null ? prev : null));
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [activeCollection?.id, customization?.hasCenterLabelSideB]);
+
   const hasAlbumBg = !!(customization?.hasCustomBackground && albumBgUrl);
   const effectiveImageUrl = hasAlbumBg ? albumBgUrl : globalBackground.imageUrl;
   const effectiveOpacity = hasAlbumBg
@@ -147,6 +186,26 @@ export function useActiveCustomization(
       : null;
 
   const vinylColor = customization?.vinylColor || null;
+
+  const isPlayingSideB = (() => {
+    if (!currentTrack || !activeCollection?.tracks || activeCollection.tracks.length <= 1) {
+      return false;
+    }
+    const tracks = activeCollection.tracks;
+    const midpoint = Math.ceil(tracks.length / 2);
+    const sideBTracks = tracks.slice(midpoint);
+    return sideBTracks.some(t => 
+      (t.audioId && currentTrack.audioId && t.audioId === currentTrack.audioId) ||
+      (t.uri && currentTrack.uri && t.uri === currentTrack.uri) ||
+      (t.name && currentTrack.name && t.artist && currentTrack.artist &&
+       t.name.trim().toLowerCase() === currentTrack.name.trim().toLowerCase() &&
+       t.artist.trim().toLowerCase() === currentTrack.artist.trim().toLowerCase())
+    );
+  })();
+
+  const effectiveCenterLabelUrl = isPlayingSideB
+    ? (centerLabelSideBUrl || centerLabelSideAUrl)
+    : (centerLabelSideAUrl || centerLabelSideBUrl);
 
   const effectivePalette = hasAlbumBg
     ? (customization?.backgroundPalette || null)
@@ -173,5 +232,8 @@ export function useActiveCustomization(
     effectiveMediaType,
     customVisualizerRgb,
     vinylColor,
+    centerLabelUrl: effectiveCenterLabelUrl,
+    centerLabelSideAUrl,
+    centerLabelSideBUrl,
   };
 }

@@ -4,8 +4,9 @@ export const BACKGROUNDS_STORE = "backgrounds";
 export const AUDIO_STORE = "mp3-audio";
 export const ARTWORK_STORE = "mp3-artwork";
 export const ALBUM_BG_STORE = "album-backgrounds";
+export const CENTER_LABEL_STORE = "album-center-labels";
 
-const REQUIRED_STORES = [BACKGROUNDS_STORE, AUDIO_STORE, ARTWORK_STORE, ALBUM_BG_STORE];
+const REQUIRED_STORES = [BACKGROUNDS_STORE, AUDIO_STORE, ARTWORK_STORE, ALBUM_BG_STORE, CENTER_LABEL_STORE];
 
 let dbInstance: IDBDatabase | null = null;
 let dbOpenPromise: Promise<IDBDatabase> | null = null;
@@ -496,6 +497,144 @@ export async function deleteAlbumBackground(albumId: string): Promise<void> {
     req.onerror = () => reject(req.error);
     tx.onerror = () => reject(tx.error);
   });
+}
+
+const centerLabelUrlCache = new Map<string, string>();
+
+function getCenterLabelKey(albumId: string, side: "a" | "b" = "a"): string {
+  return side === "b" ? `label-${albumId}-b` : `label-${albumId}`;
+}
+
+function getCenterLabelCacheKey(albumId: string, side: "a" | "b" = "a"): string {
+  return `${albumId}:${side}`;
+}
+
+function pruneCenterLabelCache(albumId: string, side: "a" | "b" = "a") {
+  const cacheKey = getCenterLabelCacheKey(albumId, side);
+  const existing = centerLabelUrlCache.get(cacheKey);
+  if (existing) {
+    URL.revokeObjectURL(existing);
+    centerLabelUrlCache.delete(cacheKey);
+  }
+}
+
+export async function saveCenterLabel(albumId: string, blob: Blob, side: "a" | "b" = "a"): Promise<void> {
+  pruneCenterLabelCache(albumId, side);
+  const db = await openDatabase();
+  const key = getCenterLabelKey(albumId, side);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CENTER_LABEL_STORE, "readwrite");
+    const store = tx.objectStore(CENTER_LABEL_STORE);
+    const req = store.put(blob, key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function getCenterLabelUrl(albumId: string, side: "a" | "b" = "a"): Promise<string | null> {
+  if (!albumId) return null;
+  const cacheKey = getCenterLabelCacheKey(albumId, side);
+  if (centerLabelUrlCache.has(cacheKey)) {
+    return centerLabelUrlCache.get(cacheKey)!;
+  }
+
+  const db = await openDatabase();
+  const key = getCenterLabelKey(albumId, side);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CENTER_LABEL_STORE, "readonly");
+    const store = tx.objectStore(CENTER_LABEL_STORE);
+    const req = store.get(key);
+    req.onsuccess = () => {
+      const blob = req.result as Blob | undefined;
+      if (blob) {
+        pruneCenterLabelCache(albumId, side);
+        const url = URL.createObjectURL(blob);
+        centerLabelUrlCache.set(cacheKey, url);
+        resolve(url);
+      } else {
+        resolve(null);
+      }
+    };
+    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function deleteCenterLabel(albumId: string, side: "a" | "b" = "a"): Promise<void> {
+  pruneCenterLabelCache(albumId, side);
+  const db = await openDatabase();
+  const key = getCenterLabelKey(albumId, side);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CENTER_LABEL_STORE, "readwrite");
+    const store = tx.objectStore(CENTER_LABEL_STORE);
+    const req = store.delete(key);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function exportCenterLabels(): Promise<Record<string, string>> {
+  const db = await openDatabase();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(CENTER_LABEL_STORE, "readonly");
+    const store = tx.objectStore(CENTER_LABEL_STORE);
+    const req = store.openCursor();
+    const list: { id: string; blob: Blob }[] = [];
+
+    req.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        if (cursor.value instanceof Blob) {
+          list.push({ id: String(cursor.key), blob: cursor.value });
+        }
+        cursor.continue();
+      } else {
+        const result: Record<string, string> = {};
+        Promise.all(
+          list.map(async (item) => {
+            try {
+              result[item.id] = await blobToBase64(item.blob);
+            } catch (err) {
+              console.warn(`Failed to export center label ${item.id}:`, err);
+            }
+          })
+        )
+          .then(() => resolve(result))
+          .catch(reject);
+      }
+    };
+    req.onerror = () => reject(req.error);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+export async function importCenterLabels(labels: Record<string, string>): Promise<void> {
+  if (!labels || typeof labels !== "object") return;
+  const db = await openDatabase();
+  const entries = Object.entries(labels).filter(([_, b64]) => typeof b64 === "string" && b64.length > 0);
+  if (entries.length === 0) return;
+
+  const BATCH_SIZE = 4;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(CENTER_LABEL_STORE, "readwrite");
+      const store = tx.objectStore(CENTER_LABEL_STORE);
+      for (const [id, base64] of batch) {
+        try {
+          const blob = base64ToBlob(base64);
+          store.put(blob, id);
+        } catch (err) {
+          console.warn(`Failed to decode and store center label ${id}:`, err);
+        }
+      }
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(new Error(`Transaction aborted during center label import batch at ${i}`));
+    });
+  }
 }
 
 export async function exportAlbumBackgrounds(): Promise<Record<string, string>> {

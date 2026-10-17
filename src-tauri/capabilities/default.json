@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default desktop capabilities",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "wallpaper:default"]
 }
